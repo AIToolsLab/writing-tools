@@ -2,29 +2,35 @@
  * @format
  */
 
-import { streamText, type ModelMessage } from 'ai';
-import { useAtomValue } from 'jotai';
+import { type ModelMessage } from 'ai';
+import { useCallback, useContext, useRef, useState } from 'react';
 import {
-	useCallback,
-	useContext,
-	useEffect,
-	useRef,
-	useState,
-} from 'react';
-import { Remark } from 'react-remark';
-import { log } from '@/api';
-import { OPENAI_MODEL, openai } from '@/api/openai';
-import { buildMessages } from '@/api/prompts';
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { generateFullText } from '@/api/generate';
+import { draftLog } from '@/api/logging';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
+import { buildMessages, DRAFT_INSTRUCTIONS } from '@/api/prompts';
+import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import Markdown from '@/components/markdown';
+import {
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
+import { isFlagEnabled } from '../flags';
 import { iconFunc } from './iconFunc';
+import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
 	example_sentences: 'Examples of what you could write next:',
 	analysis_readerPerspective: 'Possible questions your reader might have:',
-	proposal_advice: 'Advice for your next words:',
+	proposal_advice: 'What a writing coach might suggest:',
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
 };
@@ -36,11 +42,11 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 	analysis_readerPerspective: {
 		name: 'Questions',
-		description: 'Understand reader perspective',
+		description: 'What might a reader ask?',
 	},
 	proposal_advice: {
 		name: 'Advice',
-		description: 'Get suggestions for next words',
+		description: 'What might a writing coach suggest?',
 	},
 	example_rewording: {
 		name: 'Rewording',
@@ -48,11 +54,13 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 };
 
-const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice', 'example_rewording'];
+const modes = ['analysis_readerPerspective', 'proposal_advice'];
 
 interface SuggestionRequest {
 	docContext: DocContext;
 	type: string;
+	/** The document's brief, prompt-formatted; null when the writer set none. */
+	brief: string | null;
 }
 
 class Fetcher {
@@ -64,30 +72,30 @@ class Fetcher {
 		this.previousRequest = null;
 	}
 
-	async fetchSuggestion(request: SuggestionRequest): Promise<GenerationResult> {
+	async fetchSuggestion(
+		request: SuggestionRequest,
+	): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
 			const messages = buildMessages(
 				request.type,
 				request.docContext,
+				request.brief,
 			) as ModelMessage[];
 
-			const stream = streamText({
-				model: openai.chat(OPENAI_MODEL),
+			// generateFullText, not `streamText(...).text`: the latter resolves to
+			// an empty string when the generation failed, which is how a quota
+			// error used to surface as "No suggestions yet".
+			const result = await generateFullText({
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
+				instructions: DRAFT_INSTRUCTIONS,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});
 
-			const result = await stream.text;
-
 			this.previousRequest = request;
 			return { generation_type: request.type, result, extra_data: {} };
-		} catch (err: any) {
-			let errMsg = '';
-			if (err.name === 'AbortError')
-				errMsg = `Generating a suggestion took too long, please try again.`;
-			else errMsg = `${err.name}: ${err.message}. Please try again.`;
-			throw new Error(errMsg);
 		} finally {
 			this.requestInFlight = null;
 		}
@@ -128,11 +136,15 @@ function _GenerationResult({ generation }: { generation: GenerationResult }) {
 		<div className={classes.generationResult}>
 			{showTitle ? (
 				<div className={classes.generationTitle}>
-					{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
+					{
+						visibleNameForMode[
+							generation.generation_type as keyof typeof visibleNameForMode
+						]
+					}
 				</div>
 			) : null}
 			<div className={classes.generationContent}>
-				<Remark>{formattedResult}</Remark>
+				<Markdown>{formattedResult}</Markdown>
 			</div>
 		</div>
 	);
@@ -146,41 +158,38 @@ function SavedGenerations({
 	deleteSavedItem: (dateSaved: Date) => void;
 }) {
 	return (
-		<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+		<div
+			style={{
+				display: 'flex',
+				flexDirection: 'column',
+				gap: '6px',
+				width: '100%',
+			}}
+		>
 			{savedItems.map((savedItem, index) => (
 				<div
 					key={savedItem.dateSaved.toString()}
 					className={classes.resultItem}
 					style={{ animationDelay: `${index * 0.05}s` }}
-					onMouseEnter={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '1';
-					}}
-					onMouseLeave={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '0';
-					}}
 				>
-					<div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'flex-start',
+							gap: '8px',
+							width: '100%',
+						}}
+					>
 						<div style={{ flex: 1, minWidth: 0 }}>
-							<_GenerationResult generation={savedItem.generation} />
+							<_GenerationResult
+								generation={savedItem.generation}
+							/>
 						</div>
 						<button
-							data-delete
+							className={classes.deleteBtn}
 							onClick={() => deleteSavedItem(savedItem.dateSaved)}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								color: 'var(--text-tertiary)',
-								fontSize: '14px',
-								opacity: 0,
-								transition: 'opacity .15s',
-								padding: '2px',
-								flexShrink: 0,
-							}}
-							aria-label="Delete suggestion"
-							title="Delete suggestion"
+							aria-label="Dismiss note"
+							title="Dismiss note"
 						>
 							✕
 						</button>
@@ -191,58 +200,26 @@ function SavedGenerations({
 	);
 }
 
-/**
- * Call a callback function at a specified interval, with the ability to reset the interval.
- *
- * @param callback The function to be called on each interval.
- * @param interval The interval duration in milliseconds.
- * @returns A function to reset the interval.
- */
-function useResettableInterval(callback: () => void, interval: number) {
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const callbackRef = useRef(callback);
-
-	useEffect(() => {
-		callbackRef.current = callback;
-	}, [callback]);
-
-	useEffect(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (interval <= 0) {
-			timerRef.current = null;
-			return;
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [interval]);
-
-	return useCallback(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-	}, [interval]);
-}
-
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
-	const docContextSnapshot = useDocContext(editorAPI);
-	const username = useAtomValue(usernameAtom);
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const { brief } = useDocBrief();
+	const log = useLog();
+	// Read when a suggestion is requested, alongside the document context, so a
+	// brief edited moments ago is the one that applies.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-	const [errorMsg, updateErrorMsg] = useState('');
+	const [errorInfo, updateErrorInfo] = useState<GenerationErrorInfo | null>(
+		null,
+	);
+	/** Set when a request succeeded but the model had nothing to say. */
+	const [emptyResult, setEmptyResult] = useState(false);
 	const [activeMode, setActiveMode] = useState<string | null>(null);
 	const fetcherRef = useRef<Fetcher | null>(null);
+	/** The last request, so the notice's Retry button can re-run it. */
+	const lastRequestRef = useRef<SuggestionRequest | null>(null);
 
 	const getFetcher = useCallback((): Fetcher => {
 		if (!fetcherRef.current) {
@@ -250,26 +227,23 @@ export default function Draft() {
 		}
 		return fetcherRef.current;
 	}, []);
-	const docContextRef = useRef<DocContext>(docContextSnapshot);
-	docContextRef.current = docContextSnapshot;
-
-	// console.log({
-	// 	before: docContextSnapshot.beforeCursor.slice(-50),
-	// 	selected: docContextSnapshot.selectedText,
-	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
-	// });
 
 	const autoRefreshInterval = 0;
-	const modesToShow = modes;
+	// Rewording is off unless the `rewording` feature flag is on (`?ff=rewording`;
+	// see pages/flags.ts). It hands the writer wording that isn't theirs, which
+	// cuts against the onboarding's "the words stay yours", and a replacement
+	// interface is in progress. The prompt and its tests stay so it can be demoed.
+	const modesToShow = isFlagEnabled('rewording')
+		? [...modes, 'example_rewording']
+		: modes;
 
 	const shouldAutoRefresh = autoRefreshInterval > 0;
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
-			log({
-				username: username,
-				event: 'ShowSuggestion',
-				prompt: document,
+			draftLog.suggestionShown(log, {
+				generationType: generation.generation_type,
+				docContext: document,
 				result: generation,
 			});
 			updateSavedItems((savedItems) => [
@@ -281,7 +255,7 @@ export default function Draft() {
 				...savedItems,
 			]);
 		},
-		[username],
+		[log],
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
@@ -303,10 +277,10 @@ export default function Draft() {
 				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
-			log({
-				username: username,
-				event: 'Delete',
-				prompt: savedItems[savedItemIdx].document,
+			draftLog.suggestionDeleted(log, {
+				generationType:
+					savedItems[savedItemIdx].generation.generation_type,
+				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
 			});
 			return newSaved;
@@ -319,7 +293,9 @@ export default function Draft() {
 			suggestionRequest: SuggestionRequest,
 			isUserInitiated = true,
 		) {
-			updateErrorMsg('');
+			updateErrorInfo(null);
+			setEmptyResult(false);
+			lastRequestRef.current = suggestionRequest;
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
@@ -341,54 +317,70 @@ export default function Draft() {
 				return;
 			}
 			try {
-				const suggestion = await getFetcher().fetchSuggestion(suggestionRequest);
+				const suggestion =
+					await getFetcher().fetchSuggestion(suggestionRequest);
 				// The AI sometimes returns "[]" (an empty JSON array) as plain text
 				// when it has nothing to say. Treat that the same as an empty response
 				// so we don't show a useless "[]" bullet to the user.
-				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
+				const isEmpty =
+					suggestion.result.trim() === '' ||
+					suggestion.result.trim() === '[]';
 				if (isEmpty) {
+					// Nothing to show, but say so — silence reads as a broken button.
 					console.warn('Received empty suggestion.');
+					setEmptyResult(true);
+					draftLog.suggestionEmpty(log, {
+						generationType: suggestionRequest.type,
+						docContext: suggestionRequest.docContext,
+					});
 				} else {
 					save(suggestion, suggestionRequest.docContext);
 				}
-			} catch (err: any) {
-				const errMsg: string =
-					err.message ||
-					'An error occurred while generating the suggestion.';
-				log({
-					username: username,
-					event: 'generation_error',
-
-					generation_type: suggestionRequest.type,
+			} catch (err) {
+				const info = describeGenerationError(err);
+				console.error('Error fetching suggestion:', err);
+				draftLog.generationError(log, {
+					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
-					result: errMsg,
+					error: info.detail,
+					code: info.code,
 				});
-				updateErrorMsg(errMsg);
+				updateErrorInfo(info);
 			}
 
 			setIsLoading(false);
 		},
-		[getFetcher, save, username],
+		[getFetcher, save, log],
 	);
 
-	const autoRefreshCallback = useCallback(() => {
+	const retryLastRequest = useCallback(() => {
+		const request = lastRequestRef.current;
+		if (request) void getSuggestion(request, true);
+	}, [getSuggestion]);
+
+	const autoRefreshCallback = useCallback(async () => {
 		if (!shouldAutoRefresh) {
 			return;
 		}
-		const request = {
-			docContext: docContextRef.current,
-			type: modesToShow[0],
-		};
 		if (getFetcher().requestInFlight) {
 			console.warn(
 				'Auto-refresh skipped because a request is already in flight.',
 			);
 			return;
 		}
+		// Pull the current document context at refresh time rather than tracking
+		// it continuously.
+		const docContext = await refreshDocContext();
+		const request = {
+			docContext,
+			type: modesToShow[0],
+			brief: formatDocBriefForPrompt(briefRef.current),
+		};
 		const prevRequest = getFetcher().previousRequest;
 		if (
 			prevRequest &&
-			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContextRef.current) &&
+			JSON.stringify(prevRequest.docContext) ===
+				JSON.stringify(docContext) &&
 			prevRequest.type === modesToShow[0]
 		) {
 			console.warn(
@@ -396,15 +388,12 @@ export default function Draft() {
 			);
 			return;
 		}
-		log({
-			username: username,
-			event: 'auto_refresh',
-
-			generation_type: modesToShow[0],
-			docContext: docContextRef.current,
+		draftLog.autoRefresh(log, {
+			generationType: modesToShow[0],
+			docContext,
 		});
 		getSuggestion(request, false);
-	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh, username]);
+	}, [getFetcher, getSuggestion, shouldAutoRefresh, log, refreshDocContext]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -414,13 +403,12 @@ export default function Draft() {
 	return (
 		<div className={classes.app}>
 			<div className={classes.body}>
-					
 				<div className="flex flex-col flex-1 overflow-hidden">
 					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
-						{/* Instruction */}
-						<div className={classes.instruction}>
-							CLICK A DESIRED BUTTON
-						</div>
+						{/* The document's brief — same section as on Revise, same
+						    stored values; collapsed here since this page's job is
+						    the buttons below it. */}
+						<BriefSection page="draft" />
 
 						{/* Feature Grid */}
 						<div className={classes.featureGrid}>
@@ -434,49 +422,90 @@ export default function Draft() {
 										key={mode}
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
-											setActiveMode(mode);
-											log({
-												username: username,
-												event: 'request_suggestion',
-												generation_type: mode,
-												docContext: docContextRef.current,
-											});
-											resetAutoRefresh();
-											const request = {
-												docContext: docContextRef.current,
-												type: mode,
-											};
-											getSuggestion(request, true);
+											void (async () => {
+												setActiveMode(mode);
+												// Pull the current document context at click time.
+												const docContext =
+													await refreshDocContext();
+												draftLog.suggestionRequested(
+													log,
+													{
+														generationType: mode,
+														docContext,
+													},
+												);
+												resetAutoRefresh();
+												getSuggestion(
+													{
+														docContext,
+														type: mode,
+														brief: formatDocBriefForPrompt(
+															briefRef.current,
+														),
+													},
+													true,
+												);
+											})();
 										}}
 										disabled={isLoading}
 										type="button"
 										aria-label={meta?.name}
 										title={meta?.description}
 									>
-										{Icon ? <Icon className={classes.featIcon} /> : null}
+										{Icon ? (
+											<Icon
+												className={classes.featIcon}
+											/>
+										) : null}
 										{meta ? (
 											<>
-												<div className={classes.featName}>{meta.name}</div>
-												<div className={classes.featDesc}>{meta.description}</div>
+												<div
+													className={classes.featName}
+												>
+													{meta.name}
+												</div>
+												<div
+													className={classes.featDesc}
+												>
+													{meta.description}
+												</div>
 											</>
 										) : null}
-										<div className={classes.activeDot}></div>
+										<div
+											className={classes.activeDot}
+										></div>
 									</button>
 								);
 							})}
 						</div>
 						{/* Results Area */}
-						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
-							{errorMsg ? (
-								<div className={classes.errorMessage}>
-									{errorMsg}
-								</div>
+						<div
+							className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}
+						>
+							{errorInfo ? (
+								<GenerationErrorNotice
+									info={errorInfo}
+									onRetry={retryLastRequest}
+								/>
 							) : null}
-							{!errorMsg && savedItems.length === 0 && !isLoading ? (
+							{emptyResult && !errorInfo ? (
+								<ErrorNotice
+									tone="info"
+									title="No notes this time"
+									message="The assistant had nothing to add for this text. Try again, select a different part of your document, or pick another option above."
+									onRetry={retryLastRequest}
+								/>
+							) : null}
+							{!errorInfo &&
+							!emptyResult &&
+							savedItems.length === 0 &&
+							!isLoading ? (
 								<div className={classes.emptyStateContainer}>
-									<div className={classes.emptyTitle}>No suggestions yet</div>
+									<div className={classes.emptyTitle}>
+										Nothing yet
+									</div>
 									<div className={classes.emptyHint}>
-										Click a button above to generate suggestions for your text
+										Pick what kind of note you want
 									</div>
 								</div>
 							) : null}
@@ -497,12 +526,11 @@ export default function Draft() {
 					</div>
 
 					<div className={classes.disclaimer}>
-						Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
+						These notes come from AI and can miss the mark. Keep
+						what helps you think; leave the rest.
 					</div>
 				</div>
-
 			</div>
 		</div>
-			);
-		}
-		
+	);
+}

@@ -1,44 +1,39 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
-import { log } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
+import { logThenRedirect } from '@/lib/logging';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPageUrl } from './useNextPage';
 
 export default function IntroPage() {
-  const searchParams = useSearchParams();
+  const studyParams = useAtomValue(studyParamsAtom);
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const username = searchParams.get('username') || '';
+    const username = studyParams.username;
     const browserMetadata = getBrowserMetadata();
 
     // Log the start event with browser metadata
-    await log({
-      username,
-      event: 'Started Study',
-      extra_data: browserMetadata,
-    });
-
-    // Update params and navigate
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('intro')!);
-    window.location.href = `/study?${params.toString()}`;
+    await logThenRedirect(
+      { username, event: 'Started Study', extra_data: browserMetadata },
+      nextUrl
+    );
   };
 
   return (
     <div className="max-w-2xl mx-auto p-8">
       <div className="space-y-6 mb-8">
         <section>
-          <h2 className="text-2xl font-semibold mb-3">Overview</h2>
-          <p className="text-gray-700 mb-4">
-            Thank you for participating in this research study about AI writing
-            assistance. Your contributions will help us understand how writers
-            interact with AI tools.
-          </p>
+          <h2 className="text-2xl font-semibold mb-3">Hi!</h2>
+				<p>We&apos;re a group of students and one professor at Calvin University, a small mostly-undergrad school in Grand Rapids, Michigan.</p>
+				<p>We&apos;ve been interested in how different kinds of AI affect what&mdash;and how&mdash;people write.</p>
+				<p>In this study, we will explore how AI writing tools influence your writing process and outcomes.</p>
+				<p>Thank you for helping us out!</p>
         </section>
 
         <section>
@@ -47,9 +42,15 @@ export default function IntroPage() {
             <li>Complete a brief questionnaire about your background</li>
             <li>Write an email message. We&apos;ll walk you through the task step-by-step.
             </li>
-            <li>Complete a follow-up questionnaire about your experience</li>
+            <li>Complete a follow-up questionnaire about the task and your experience</li>
           </ol>
         </section>
+          <p className="text-gray-700 mb-4">
+            Thank you for participating in this research study about AI writing
+            assistance. Your contributions will help us understand how writers
+            interact with AI tools.
+          </p>
+				<p>Ready?</p>
       </div>
 
       <button

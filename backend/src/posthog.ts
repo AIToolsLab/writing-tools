@@ -2,7 +2,14 @@ import { createMiddleware } from 'hono/factory';
 import { PostHog } from 'posthog-node';
 
 const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim() || "placeholder-token";
-const host = (process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com').trim();
+// Strip any trailing slash so building management-API URLs (deletePosthogPerson)
+// can't produce a double slash — the shipped POSTHOG_HOST default ends in '/', and
+// many reverse proxies 404 on `//api/...`.
+const host =
+	((process.env.POSTHOG_HOST ?? '').trim() || 'https://us.i.posthog.com').replace(
+		/\/+$/,
+		'',
+	);
 
 const shouldDisablePosthog = token === "placeholder-token" || process.env.DISABLE_POSTHOG === '1';
 
@@ -27,6 +34,42 @@ export async function captureException(
 		await posthog.flush();
 	} catch {
 		// Never let error tracking break the request path.
+	}
+}
+
+/**
+ * Best-effort deletion of a user's PostHog person + events, for "delete my data".
+ *
+ * The capture token can't delete data; this needs the management API (a personal
+ * API key + project id). When those aren't configured we no-op with a warning so
+ * self-hosted/dev deletion requests still succeed for the parts we control (the
+ * JSONL logs). NOTE: verify the endpoint shape against your PostHog version before
+ * relying on it in production.
+ */
+export async function deletePosthogPerson(distinctId: string): Promise<void> {
+	const personalKey = (process.env.POSTHOG_PERSONAL_API_KEY ?? '').trim();
+	const projectId = (process.env.POSTHOG_PROJECT_ID ?? '').trim();
+	if (!personalKey || !projectId) {
+		console.warn(
+			'PostHog person deletion skipped (POSTHOG_PERSONAL_API_KEY / POSTHOG_PROJECT_ID unset); delete manually if needed.',
+		);
+		return;
+	}
+	try {
+		const res = await fetch(
+			`${host}/api/projects/${projectId}/persons/?distinct_id=${encodeURIComponent(distinctId)}&delete_events=true`,
+			{ method: 'DELETE', headers: { Authorization: `Bearer ${personalKey}` } },
+		);
+		// fetch only rejects on network errors — surface 4xx/5xx so a failed
+		// deletion isn't silently treated as success.
+		if (!res.ok) {
+			await captureException(
+				new Error(`PostHog person deletion failed (${res.status})`),
+				{ context: 'deletePosthogPerson' },
+			);
+		}
+	} catch (e) {
+		await captureException(e, { context: 'deletePosthogPerson' });
 	}
 }
 

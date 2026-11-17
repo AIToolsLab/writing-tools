@@ -47,6 +47,9 @@ describe('appendLog', () => {
 			ok: true,
 			username: 'bob',
 			event: 'click',
+			schema_version: 1,
+			page: 'draft',
+			client_id: null,
 			extra_data: { a: 1 },
 		});
 		await appendLog({
@@ -54,6 +57,9 @@ describe('appendLog', () => {
 			ok: true,
 			username: 'bob',
 			event: 'type',
+			schema_version: 1,
+			page: 'chat',
+			client_id: null,
 			extra_data: {},
 		});
 
@@ -71,6 +77,9 @@ describe('appendLog', () => {
 				ok: true,
 				username: '../escape',
 				event: 'x',
+				schema_version: 1,
+				page: 'draft',
+				client_id: null,
 				extra_data: {},
 			}),
 		).rejects.toThrow();
@@ -113,6 +122,9 @@ describe('zipLogs', () => {
 			ok: true,
 			username: 'dave',
 			event: 'x',
+			schema_version: 1,
+			page: 'draft',
+			client_id: null,
 			extra_data: {},
 		});
 		const zip = await zipLogs();

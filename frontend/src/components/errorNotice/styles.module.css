@@ -1,0 +1,105 @@
+/* Token fallbacks: not every page defines the design tokens. */
+.notice {
+	width: 100%;
+	border: 1px solid;
+	border-radius: var(--radius, 10px);
+	padding: 10px 12px;
+	margin-bottom: 8px;
+	font-size: 13px;
+	line-height: 1.5;
+	text-align: left;
+	animation: noticeIn 0.2s ease both;
+}
+
+.error {
+	background: #fdf3f2;
+	border-color: #f0cfcb;
+	color: #7a2e26;
+}
+
+.info {
+	background: var(--surface-2, #f0eee9);
+	border-color: var(--border, rgba(0, 0, 0, 0.08));
+	color: var(--text-secondary, #6b6860);
+}
+
+.head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 4px;
+}
+
+.icon {
+	flex-shrink: 0;
+	font-size: 15px;
+}
+
+.title {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.message {
+	color: inherit;
+	opacity: 0.95;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.retry,
+.detailToggle {
+	background: transparent;
+	border: 1px solid currentColor;
+	border-radius: var(--radius-sm, 6px);
+	color: inherit;
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	padding: 3px 9px;
+}
+
+.detailToggle {
+	border-color: transparent;
+	text-decoration: underline;
+	padding-left: 0;
+	padding-right: 0;
+	opacity: 0.8;
+}
+
+.retry:hover,
+.detailToggle:hover {
+	opacity: 1;
+	background: rgba(0, 0, 0, 0.04);
+}
+
+.detail {
+	margin: 8px 0 0;
+	padding: 8px;
+	background: rgba(0, 0, 0, 0.04);
+	border-radius: var(--radius-sm, 6px);
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11px;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 160px;
+	overflow-y: auto;
+}
+
+@keyframes noticeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-2px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}

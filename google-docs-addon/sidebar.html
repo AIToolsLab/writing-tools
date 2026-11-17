@@ -1,18 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Writing Tools</title>
-  
-  <!-- 
-    This is the sidebar entry point for the Google Docs add-on.
-    
-    In development, it loads the React app from a local dev server.
-    In production, this file should be replaced with a bundled version
-    that includes all the React code inline.
-  -->
+  <title>Thoughtful</title>
   
   <style>
     /* Base styles while loading */
@@ -64,7 +56,7 @@
   <div id="root">
     <div class="loading-container">
       <div class="loading-spinner"></div>
-      <div class="loading-text">Loading Writing Tools...</div>
+      <div class="loading-text">Loading Thoughtful...</div>
     </div>
   </div>
   
@@ -139,6 +131,21 @@
       },
 
       /**
+       * Stores a property on the document (shared by everyone who opens it),
+       * as opposed to on the user.
+       */
+      setDocumentProperty: function(key, value) {
+        return this.run('setDocumentProperty', key, value);
+      },
+
+      /**
+       * Gets a document property.
+       */
+      getDocumentProperty: function(key) {
+        return this.run('getDocumentProperty', key);
+      },
+
+      /**
        * Gets the document ID of the active document.
        */
       getDocumentId: function() {
@@ -182,22 +189,29 @@
       - otherwise             -> load the production bundle automatically
 
     To develop, rename your test doc to include [dev], then pick a source:
-    "localhost" needs `npm run dev-server:google-docs` running; "staging" is the
-    latest merge to main; "prod" is the released version.
+    "localhost" needs the frontend dev server (`npm run dev-server` in frontend/)
+    running; "staging" is the latest merge to main; "prod" is the released
+    version.
+
+    Each source serves both google-docs.bundle.js and the backend API, and the
+    bundle derives its API origin from its own <script src> (see
+    frontend/src/api/index.ts), so picking a source here switches the backend
+    too.
   -->
   <script>
     (function () {
       var DEV_MARKER = '[dev]';
       var SOURCES = {
-        localhost: 'http://localhost:3001',
-        staging: 'https://staging.thoughtful-ai.com/gdocs',
-        prod: 'https://app.thoughtful-ai.com/gdocs'
+        localhost: 'https://localhost:3000',
+        localhostNoSSL: 'http://localhost:3000',
+        staging: 'https://staging.thoughtful-ai.com',
+        prod: 'https://app.thoughtful-ai.com'
       };
 
       function loadFrom(base) {
         document.getElementById('root').innerHTML =
           '<div class="loading-container"><div class="loading-spinner"></div>' +
-          '<div class="loading-text">Loading Writing Tools…</div></div>';
+          '<div class="loading-text">Loading Thoughtful…</div></div>';
 
         var link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -208,7 +222,7 @@
         s.src = base + '/google-docs.bundle.js';
         s.onerror = function () {
           document.getElementById('root').innerHTML =
-            '<div class="error-container"><h3>Could not load Writing Tools</h3>' +
+            '<div class="error-container"><h3>Could not load Thoughtful</h3>' +
             '<p>Failed to load the app from <code>' + base + '</code>.</p></div>';
         };
         document.body.appendChild(s);
@@ -218,7 +232,7 @@
         var root = document.getElementById('root');
         root.innerHTML =
           '<div style="padding:20px;color:#202124;">' +
-          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Writing Tools from:</p>' +
+          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Thoughtful from:</p>' +
           '<div id="srcButtons"></div></div>';
         var box = document.getElementById('srcButtons');
         Object.keys(SOURCES).forEach(function (key) {
@@ -242,59 +256,5 @@
         .catch(function () { loadFrom(SOURCES.prod); });
     })();
   </script>
-  
-  <!-- 
-    PRODUCTION: The bundled React app code goes here.
-    Run the build script to generate this:
-    
-    npm run build:google-docs
-    
-    This will inline all JS/CSS into this file.
-  -->
-  <!--
-  <script>
-    // Placeholder for production bundle
-    // The build process will replace this with the actual bundled code
-    
-    // For now, show a message about development setup
-    setTimeout(function() {
-      if (!window.__REACT_APP_LOADED__) {
-        document.getElementById('root').innerHTML = `
-          <div style="padding: 20px; font-family: sans-serif;">
-            <h2>Writing Tools</h2>
-            <p>The app bundle needs to be built and included here.</p>
-            <h3>Development Setup:</h3>
-            <ol>
-              <li>Run <code>npm run dev</code> in the frontend folder</li>
-              <li>Uncomment the development script section above</li>
-              <li>Reload the sidebar</li>
-            </ol>
-            <h3>Production Build:</h3>
-            <ol>
-              <li>Run <code>npm run build:google-docs</code></li>
-              <li>The build script will inline the bundle into this file</li>
-            </ol>
-            <hr>
-            <h3>Test Apps Script Functions:</h3>
-            <button onclick="testGetDocContext()">Test getDocContext()</button>
-            <pre id="test-output" style="background: #f5f5f5; padding: 10px; margin-top: 10px;"></pre>
-          </div>
-        `;
-      }
-    }, 2000);
-    
-    // Test function for development
-    function testGetDocContext() {
-      document.getElementById('test-output').textContent = 'Loading...';
-      window.GoogleAppsScript.getDocContext()
-        .then(function(result) {
-          document.getElementById('test-output').textContent = JSON.stringify(result, null, 2);
-        })
-        .catch(function(error) {
-          document.getElementById('test-output').textContent = 'Error: ' + error;
-        });
-    }
-  </script>
-  -->
 </body>
 </html>

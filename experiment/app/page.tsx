@@ -31,12 +31,12 @@ export default function Home() {
               <code className="text-gray-800">condition</code>, etc.). Participants reach
               it through the consent flow.
             </p>
-            <Link
+            <a
               href={STUDY_TEST_URL}
               className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Open study (test URL)
-            </Link>
+            </a>
           </div>
 
           <div className="border border-gray-200 rounded p-4">

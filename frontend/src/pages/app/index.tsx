@@ -1,8 +1,13 @@
-import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
+import {
+	PostHogProvider,
+	PostHogErrorBoundary,
+	usePostHog,
+} from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
-import { useState } from 'react';
-import { CgGoogle } from 'react-icons/cg';
+import { useEffect, useState } from 'react';
+import { accountPageUrl } from '@/api/account';
+import { analyticsAllowed } from '@/consent';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -10,6 +15,7 @@ import {
 } from '@/contexts/appAuthContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import ChatContextWrapper from '@/contexts/chatContext';
+import { DocBriefProvider } from '@/contexts/docBriefContext';
 import {
 	OverallMode,
 	overallModeAtom,
@@ -17,33 +23,68 @@ import {
 	pageNameAtom,
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
-import Chat from '../chat';
-import Draft from '../draft';
-import Revise from '../revise';
+import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { Reshaped, Button } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
+import '@/theme.css';
 
 // PostHog configuration - project token is safe to commit publicly
 const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
 const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
 const POSTHOG_ENABLED = true;
 
-// Device-flow status surfaced during Better Auth sign-in. Shows the user code and a
-// button that opens the approval page in a new window/tab.
+// Live countdown to the device code's expiry. Codes are short-lived (minutes) and
+// the user only used to find out at Approve time — show the clock up front.
+function CodeCountdown({ expiresAt }: { expiresAt?: number }) {
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	if (!expiresAt) return null;
+
+	const remaining = Math.max(0, Math.round((expiresAt - now) / 1000));
+	if (remaining === 0) {
+		// The polling loop surfaces the terminal 'expired' error within one poll
+		// interval (~5s); this keeps the countdown honest in that gap.
+		return <p style={{ margin: '0.25rem 0' }}>Code expired.</p>;
+	}
+	const m = Math.floor(remaining / 60);
+	const s = String(remaining % 60).padStart(2, '0');
+	return (
+		<p style={{ margin: '0.25rem 0', opacity: 0.75 }}>
+			Code expires in {m}:{s}
+		</p>
+	);
+}
+
+// Device-flow status surfaced during Better Auth sign-in. Shows the user code, a
+// link that opens the approval page in a new window/tab, the expiry countdown, and
+// a Cancel that aborts the in-flight flow, so an abandoned attempt stops polling
+// immediately instead of running until the code expires.
 // Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
 function DeviceAuthStatus({
 	authorization,
+	onCancel,
 }: {
 	authorization?: {
 		status: 'pending' | 'polling' | 'error';
 		userCode?: string;
 		verificationUri?: string;
+		expiresAt?: number;
 		error?: string;
 	};
+	onCancel?: () => void;
 }) {
 	if (!authorization) return null;
+
+	const cancelButton = onCancel ? (
+		<Button variant="ghost" size="small" onClick={onCancel}>
+			Cancel
+		</Button>
+	) : null;
 
 	if (authorization.status === 'error') {
 		return (
@@ -57,6 +98,7 @@ function DeviceAuthStatus({
 		return (
 			<div className={classes.loginInfoContainer}>
 				<p>Requesting device code…</p>
+				{cancelButton}
 			</div>
 		);
 	}
@@ -84,12 +126,23 @@ function DeviceAuthStatus({
 			>
 				{authorization.userCode}
 			</p>
+			<CodeCountdown expiresAt={authorization.expiresAt} />
 			{authorization.verificationUri ? (
-				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a href={authorization.verificationUri} target="_blank" rel="noopener">Open approval page</a>
-				</p>
+				<div style={{ margin: '0.25rem 0 0.75rem' }}>
+					<Button
+						href={authorization.verificationUri}
+						target="_blank"
+						rel="noopener"
+						color="primary"
+						variant="outline"
+						size="small"
+					>
+						Open approval page
+					</Button>
+				</div>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
+			{cancelButton}
 		</div>
 	);
 }
@@ -98,8 +151,14 @@ function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
 	const session = useAppAuth();
-	const { isLoading, isAuthorizing, error, isAuthenticated, user, authorization } =
-		session;
+	const {
+		isLoading,
+		isAuthorizing,
+		error,
+		isAuthenticated,
+		user,
+		authorization,
+	} = session;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
@@ -193,7 +252,10 @@ function AppInner() {
 							Login
 						</Button>
 
-						<DeviceAuthStatus authorization={authorization} />
+						<DeviceAuthStatus
+							authorization={authorization}
+							onCancel={session.cancelLogin}
+						/>
 
 						<div className={classes.loginInfoContainer}>
 							<p>
@@ -215,11 +277,6 @@ function AppInner() {
 						</div>
 
 						<hr />
-
-						<p>Sign in with Google</p>
-						<div className={classes.authProviderIconContainer}>
-							<CgGoogle className={classes.authProviderIcon} />
-						</div>
 
 						<div
 							className={classes.widthAlert}
@@ -249,11 +306,9 @@ function AppInner() {
 		);
 	}
 
-	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed =
-		noAuthMode ||
-		user?.email?.endsWith('@calvin.edu') ||
-		user?.email === 'example-user@textfocals.com';
+	// Beta access is decided server-side (backend userAllowlist.ts) and surfaced on
+	// the session as `isAllowed`; demo/no-auth modes are never gated here.
+	const isUserAllowed = noAuthMode || user?.isAllowed === true;
 
 	if (!noAuthMode && !isUserAllowed) {
 		return (
@@ -291,16 +346,22 @@ function AppInner() {
 		);
 	}
 
-	function getComponent(pageName: PageName): JSX.Element | null {
-		switch (pageName) {
-			case PageName.Revise:
-				return <Revise />;
-			case PageName.Chat:
-				return <Chat />;
-			case PageName.Draft:
-				return <Draft />;
-		}
-		return null;
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
+	}
+
+	// Which page renders is the registry's call, not a switch here — see
+	// pages/registry.tsx. resolvePage also handles a stored selection that is no
+	// longer visible (a lab page whose flag was turned off) by falling back to the
+	// default page; the navbar highlights the same resolved page, so the strip and
+	// the content can't disagree.
+	function getComponent(pageName: PageName): React.JSX.Element | null {
+		return resolvePage(pageName)?.render() ?? null;
 	}
 
 	return (
@@ -312,8 +373,32 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
+						<div className={classes.accountEntry}>
+							{/* The identity chip doubles as the entry point to account &
+							    privacy — account affordances belong next to identity, and the
+							    nav strip switches in-app pages, so an outbound link had no
+							    business there. In an Office task pane this opens the system
+							    browser, which has a separate storage partition and may require
+							    another sign-in. Do not pass a bearer token in the URL; an
+							    in-app account screen is the eventual solution. */}
+							<a
+								href={accountPageUrl()}
+								target="_blank"
+								rel="noopener"
+								className={classes.userNameContainer}
+								title="Account &amp; privacy"
+								// Starts with the visible text, so voice control ("click User") matches.
+								aria-label={`User: ${user.name}, account and privacy settings`}
+								aria-describedby="account-browser-note"
+							>
+								User: {user.name}
+							</a>
+							<span
+								id="account-browser-note"
+								className={classes.accountBrowserNote}
+							>
+								Opens in browser; sign-in may be required.
+							</span>
 						</div>
 					</div>
 					{authErrorType !== null && (
@@ -340,6 +425,26 @@ function AppInner() {
 					</Button>
 				</div>
 			) : null}
+			<footer className={classes.footer}>
+				<a
+					href="https://thoughtful-ai.com/"
+					className={classes.ibtn}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					Thoughtful AI Lab
+				</a>
+				{' · '}
+				<a
+					href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145"
+					className={classes.ibtn}
+					target="_blank"
+					rel="noopener noreferrer"
+					title="This material is based upon work supported by the U.S. National Science Foundation under Grant No. 2246145. Any opinions, findings, and conclusions or recommendations expressed are those of the authors and do not necessarily reflect the views of the National Science Foundation."
+				>
+					NSF #2246145
+				</a>
+			</footer>
 		</div>
 	);
 }
@@ -364,7 +469,7 @@ function AppWithProviders({
 	children,
 }: {
 	children: React.ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
 	console.log('PostHog enabled:', POSTHOG_ENABLED);
 	// Wrap with PostHog if enabled, otherwise just render children
 	if (!POSTHOG_ENABLED) {
@@ -377,6 +482,12 @@ function AppWithProviders({
 			options={{
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
+				// Capture nothing until we know the user's consent level. The
+				// PostHogConsentBridge opts in (and identifies) once the user has
+				// chosen consent >= 'usage'. Until then — and at level 'none' — PostHog
+				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
+				// level 'none' is fully silent (no crash reports either).
+				opt_out_capturing_by_default: true,
 			}}
 		>
 			<PostHogErrorBoundary fallback={<PostHogErrorFallback />}>
@@ -386,6 +497,42 @@ function AppWithProviders({
 	);
 }
 
+/**
+ * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
+ * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
+ * Auth id, matching server-side log keying + deletion) once an authenticated
+ * user has CHOSEN a level >= 'usage'; otherwise stays opted out and clears any
+ * prior identity. Renders nothing.
+ */
+function PostHogConsentBridge(): null {
+	const posthog = usePostHog();
+	const { isAuthenticated, hasSetConsent, loggingConsent, user } =
+		useAppAuth();
+
+	useEffect(() => {
+		if (!posthog) return;
+		// hasSetConsent matters: this bridge is mounted beside the app, so it runs
+		// while the onboarding consent gate is still up.
+		const allowed = analyticsAllowed({
+			isAuthenticated,
+			hasSetConsent,
+			loggingConsent,
+		});
+
+		// Require a stable id before opting in, so we never capture untethered
+		// anonymous events that can't be tied to a deletable account identity.
+		if (allowed && user?.id) {
+			posthog.identify(user.id);
+			posthog.opt_in_capturing();
+		} else {
+			posthog.opt_out_capturing();
+			posthog.reset(); // drop any identity captured under a prior session
+		}
+	}, [posthog, isAuthenticated, hasSetConsent, loggingConsent, user?.id]);
+
+	return null;
+}
+
 export default function App() {
 	// AppAuthProvider selects the active session (Better Auth by default, Demo in demo
 	// mode); AppAuthTokenBridge feeds the chosen session's getAccessToken into the token
@@ -393,13 +540,18 @@ export default function App() {
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
-				<Reshaped theme="slate">
-					<AppAuthProvider>
-						<AppAuthTokenBridge>
+				<AppAuthProvider>
+					<PostHogConsentBridge />
+					<AppAuthTokenBridge>
+						{/* The document's brief is shared by every page, so it
+						    is loaded once here rather than per page. Inside the
+						    auth providers because the section it feeds logs
+						    edits. */}
+						<DocBriefProvider>
 							<AppInner />
-						</AppAuthTokenBridge>
-					</AppAuthProvider>
-				</Reshaped>
+						</DocBriefProvider>
+					</AppAuthTokenBridge>
+				</AppAuthProvider>
 			</ChatContextWrapper>
 		</AppWithProviders>
 	);

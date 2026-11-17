@@ -60,13 +60,33 @@ Guidelines:
 `,
 };
 
+// The system prompt for every Draft suggestion. It is passed as the
+// `instructions` option on the generation call, never as a system message in
+// `messages`: ai@7 rejects a system-role message there with "System messages
+// are not allowed in the prompt or messages fields."
+export const DRAFT_INSTRUCTIONS =
+	'You are a helpful and insightful writing assistant.';
+
 // Builds the messages array that gets sent to OpenAI.
 // Previously this was done in the backend (nlp.py). Now the frontend does it,
 // so the backend only needs to forward the messages to OpenAI.
-export function buildMessages(gtype: string, docContext: DocContext) {
+//
+// `brief` is the writer's document-level brief (audience, purpose,
+// constraints), already formatted by formatDocBriefForPrompt; null when they
+// haven't set one.
+export function buildMessages(
+	gtype: string,
+	docContext: DocContext,
+	brief: string | null = null,
+) {
 	const basePrompt = prompts[gtype];
 
 	let userContent = basePrompt;
+
+	// Before the document, so the model reads the document in light of it.
+	if (brief) {
+		userContent += `\n\n${brief}`;
+	}
 
 	// If the user has extra context sections (e.g. assignment instructions), append them
 	if (docContext.contextData?.length) {
@@ -78,7 +98,9 @@ export function buildMessages(gtype: string, docContext: DocContext) {
 
 	// Send the full document text so the AI can see everything the writer has written
 	const documentText =
-		docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
+		docContext.beforeCursor +
+		docContext.selectedText +
+		docContext.afterCursor;
 	userContent += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
 
 	// Also highlight exactly where the cursor is (or what text is selected),
@@ -96,15 +118,15 @@ export function buildMessages(gtype: string, docContext: DocContext) {
 	// These two prompts say "return an empty list" which causes the AI to output "[]"
 	// as plain text instead of a proper bullet list. This line tells the AI to use
 	// bullet format so we get readable results like "- item" instead of ["item"].
-	if (gtype === 'analysis_readerPerspective' || gtype === 'example_rewording') {
-		userContent += '\n\nFormat your response as a plain bulleted list, one item per line starting with "- ". Do not use JSON or array notation.';
+	if (
+		gtype === 'analysis_readerPerspective' ||
+		gtype === 'example_rewording'
+	) {
+		userContent +=
+			'\n\nFormat your response as a plain bulleted list, one item per line starting with "- ". Do not use JSON or array notation.';
 	}
 
-	return [
-		{
-			role: 'system' as const,
-			content: 'You are a helpful and insightful writing assistant.',
-		},
-		{ role: 'user' as const, content: userContent },
-	];
+	// User messages only — the system prompt travels separately as
+	// DRAFT_INSTRUCTIONS.
+	return [{ role: 'user' as const, content: userContent }];
 }

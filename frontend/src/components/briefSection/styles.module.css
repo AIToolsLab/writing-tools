@@ -1,0 +1,151 @@
+/*
+ * The section is rendered on every page, each of which owns its own palette, so
+ * every custom property here carries a fallback matching the Revise surface it
+ * was designed against. That keeps it looking deliberate on a page that hasn't
+ * defined the variables rather than falling back to browser defaults.
+ */
+
+.section {
+	margin-bottom: 16px;
+}
+
+.header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	text-align: left;
+	font-family: 'DM Mono', monospace;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-tertiary, #b3aba0);
+	margin-bottom: 12px;
+}
+
+.header:hover .title {
+	color: var(--text-secondary, #6b6b6b);
+}
+
+.stepBadge {
+	background: var(--text-primary, #1c1c1c);
+	color: var(--surface-2, #fafaf8);
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 600;
+	flex-shrink: 0;
+}
+
+.title {
+	flex-shrink: 0;
+}
+
+/* Fills the gap between the label and the chevron with the same hairline the
+   other section headers use, so an interactive header still reads as one. */
+.rule {
+	flex: 1;
+	height: 1px;
+	background: var(--border, rgba(0, 0, 0, 0.08));
+	min-width: 8px;
+}
+
+.summary {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 10px;
+	font-weight: 500;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--text-tertiary, #b3aba0);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.summary.set {
+	color: #1b7a4e;
+}
+
+.chevron {
+	flex-shrink: 0;
+	display: inline-flex;
+	font-size: 12px;
+	transition: transform 0.15s ease;
+}
+
+.chevron.open {
+	transform: rotate(90deg);
+}
+
+.block {
+	background: var(--surface, #ffffff);
+	border: 1.5px solid var(--border, rgba(0, 0, 0, 0.08));
+	border-radius: var(--radius, 10px);
+	margin-bottom: 10px;
+	overflow: hidden;
+	transition: border-color 0.15s;
+}
+
+.block:focus-within {
+	border-color: var(--accent, #2d5be3);
+}
+
+.blockHead {
+	padding: 12px 14px 0;
+}
+
+.blockTitle {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text-primary, #1c1c1c);
+	margin-bottom: 2px;
+}
+
+.blockHint {
+	font-size: 11px;
+	color: var(--text-tertiary, #b3aba0);
+	margin-bottom: 6px;
+}
+
+.input {
+	width: 100%;
+	border: none;
+	outline: none;
+	background: transparent;
+	font-size: 13px;
+	color: var(--text-primary, #1c1c1c);
+	font-family: 'DM Sans', sans-serif;
+	resize: none;
+	line-height: 1.6;
+	padding: 8px 14px 14px;
+}
+
+.input::placeholder {
+	color: #c5bfb8;
+}
+
+.input:disabled {
+	color: var(--text-tertiary, #b3aba0);
+	cursor: progress;
+}
+
+.statusLine {
+	font-size: 11px;
+	color: var(--text-tertiary, #b3aba0);
+	min-height: 14px;
+}
+
+.statusLine.error {
+	color: #b3261e;
+}

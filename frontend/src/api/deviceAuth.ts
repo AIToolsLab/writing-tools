@@ -9,6 +9,11 @@
  * browser at `verification_uri_complete`, which Better Auth builds from the backend's
  * BETTER_AUTH_URL. This module only requests the code and polls for the token.
  */
+import {
+	type ConsentLevel,
+	DEFAULT_CONSENT_LEVEL,
+	isConsentLevel,
+} from '@/consent';
 import { SERVER_URL } from './index';
 
 // Supplied at build time via webpack DefinePlugin; must match a value in the backend's
@@ -52,13 +57,17 @@ export async function requestDeviceCode(
 		}),
 		signal,
 	});
-	const data = await res.json();
+	// Check ok before parsing: a proxy 502 with an empty body used to throw
+	// "Unexpected end of JSON input" here, masking the real failure (backend
+	// down/unreachable) behind a parse error.
 	if (!res.ok) {
-		throw new Error(
-			`device/code failed (${res.status}): ${JSON.stringify(data)}`,
-		);
+		const detail = await res
+			.json()
+			.then((d) => JSON.stringify(d))
+			.catch(() => 'no response body — is the backend running?');
+		throw new Error(`device/code failed (${res.status}): ${detail}`);
 	}
-	return data as DeviceCodeResponse;
+	return (await res.json()) as DeviceCodeResponse;
 }
 
 const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
@@ -119,7 +128,18 @@ export async function pollForToken(
 			return { type: 'error', message: (e as Error).message };
 		}
 
-		const data = await res.json();
+		// Same parse-safety as requestDeviceCode: an empty/non-JSON body (proxy
+		// error, backend restart) must surface as a readable poll error, not a
+		// JSON parse crash.
+		let data: { access_token?: unknown; error?: unknown };
+		try {
+			data = await res.json();
+		} catch {
+			return {
+				type: 'error',
+				message: `device/token failed (${res.status}): no response body — is the backend running?`,
+			};
+		}
 
 		if (res.ok && data.access_token) {
 			return { type: 'token', accessToken: data.access_token as string };
@@ -144,29 +164,103 @@ export async function pollForToken(
 	}
 }
 
-/** Authenticated user shape returned by GET /api/protected. */
+/** Authenticated user shape, mapped from Better Auth's GET /api/auth/get-session. */
 export interface UserInfo {
+	/** Better Auth user id — stable identity for analytics + log keying. */
+	id?: string;
 	email?: string;
 	name?: string;
+	/** Logging-consent level; gates analytics + event logging on the client. */
+	loggingConsent?: ConsentLevel;
+	/**
+	 * Beta access decision, computed server-side (customSession → userAllowlist.ts).
+	 * The client renders its "not allowed" screen from this rather than re-encoding
+	 * the allowlist policy.
+	 */
+	isAllowed?: boolean;
+	/**
+	 * Demo/anonymous session (see the anonymous plugin in backend/src/auth.ts).
+	 * Surfaces so account/consent surfaces can steer these users to real sign-in
+	 * rather than letting them manage consent on a throwaway identity.
+	 */
+	isAnonymous?: boolean;
+	/**
+	 * When the user last set their consent level (ISO string over JSON), or null
+	 * if they never have. `null` is the first-run signal the onboarding consent
+	 * gate keys on; later it doubles as a "last changed" value on the account
+	 * surface. Set server-side on consent change and on anonymous create.
+	 */
+	consentUpdatedAt?: string | null;
 }
 
 /**
- * Verify a Bearer token and fetch the signed-in user. `credentials: 'omit'` keeps this
- * on the token-only path. Throws on non-2xx (e.g. 401 once the session expires).
+ * Raw body of GET /api/auth/get-session. `user` carries our `additionalFields`
+ * (loggingConsent) uncoerced, so treat loggingConsent as unknown until validated.
+ * An absent/expired session yields `null` (HTTP 200), not this object.
+ */
+interface GetSessionResponse {
+	user: {
+		id?: string;
+		email?: string;
+		name?: string;
+		loggingConsent?: unknown;
+		isAllowed?: unknown;
+		isAnonymous?: unknown;
+		consentUpdatedAt?: unknown;
+	};
+}
+
+/**
+ * Verify a Bearer token and fetch the signed-in user via Better Auth's session
+ * endpoint. `credentials: 'omit'` keeps this on the token-only path (the bearer
+ * plugin converts the Bearer token into the session cookie server-side).
+ *
+ * Note: get-session returns HTTP 200 with a `null` body for an absent/expired/
+ * invalid session — NOT a 401. We throw in that case so callers (useDeviceAuth's
+ * hydrate-on-mount) still detect a stale token and fall back to login.
  */
 export async function fetchUserInfo(
 	accessToken: string,
 	signal?: AbortSignal,
 ): Promise<UserInfo> {
-	const res = await fetch(`${SERVER_URL}/protected`, {
+	const res = await fetch(`${SERVER_URL}/auth/get-session`, {
 		credentials: 'omit',
 		headers: { Authorization: `Bearer ${accessToken}` },
 		signal,
 	});
+	// A non-2xx here is a genuine transport/server failure.
 	if (!res.ok) {
-		throw new Error(`protected failed (${res.status})`);
+		throw new Error(`get-session failed (${res.status})`);
 	}
-	return (await res.json()) as UserInfo;
+	const data = (await res.json()) as GetSessionResponse | null;
+	// `null` (or a body missing `user`) = the token no longer resolves to a
+	// session. Mirror the old 401 so the stale-token path still fires.
+	if (!data?.user) {
+		throw new Error('get-session: no active session');
+	}
+	const {
+		id,
+		email,
+		name,
+		loggingConsent: raw,
+		isAllowed,
+		isAnonymous,
+		consentUpdatedAt,
+	} = data.user;
+	return {
+		id,
+		email,
+		name,
+		// get-session returns the stored value uncoerced; /api/protected used to
+		// normalize server-side, so we replicate that guard client-side.
+		loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
+		isAllowed: isAllowed === true,
+		isAnonymous: isAnonymous === true,
+		// A Date server-side; JSON gives an ISO string. Normalize anything
+		// falsy/non-string to null so `null` cleanly means "never set".
+		consentUpdatedAt:
+			typeof consentUpdatedAt === 'string' ? consentUpdatedAt : null,
+	};
 }
 
 /**

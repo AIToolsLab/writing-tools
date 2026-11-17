@@ -1,0 +1,64 @@
+/*
+ * Equal visual weight across all options — no option is highlighted, bordered
+ * more strongly, or coloured to nudge the choice. The only emphasis is the
+ * currently-selected row, and only via a neutral background.
+ */
+.group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	border: none;
+	margin: 0;
+	padding: 0;
+}
+
+.option {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	padding: 0.75rem;
+	border: 1px solid #d4d4d8;
+	border-radius: 8px;
+	cursor: pointer;
+	background: #fff;
+}
+
+.option:hover {
+	background: #fafafa;
+}
+
+/* Selected state: neutral, no persuasive colour. */
+.option:has(.radio:checked) {
+	background: #f4f4f5;
+	border-color: #a1a1aa;
+}
+
+.radio {
+	margin-top: 0.2rem;
+	flex: 0 0 auto;
+	width: 1rem;
+	height: 1rem;
+	cursor: pointer;
+}
+
+.text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.title {
+	font-weight: 600;
+	font-size: 0.95rem;
+}
+
+.description {
+	font-size: 0.85rem;
+	color: #52525b;
+	line-height: 1.4;
+}
+
+.group:disabled .option {
+	cursor: default;
+	opacity: 0.7;
+}

@@ -14,7 +14,7 @@
 		"removeComments": false,
 		"sourceMap": true,
 		"target": "ES2020",
-		"lib": ["ES2020", "DOM", "DOM.Iterable"],
+		"lib": ["ES2020", "ES2022.Intl", "DOM", "DOM.Iterable"],
 		"paths": {
 			"*": ["./src/*.d.ts"],
 			"@/*": ["./src/*"]
@@ -35,11 +35,5 @@
 	"include": ["**/*.ts", "**/*.tsx", "vite.config.ts"],
 	"exclude": ["node_modules"],
 	"compileOnSave": false,
-	"buildOnSave": false,
-	"ts-node": {
-		"compilerOptions": {
-			"module": "commonjs"
-		  },
-		"files": true
-	}
+	"buildOnSave": false
 }

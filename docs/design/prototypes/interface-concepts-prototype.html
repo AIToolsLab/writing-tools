@@ -1,0 +1,605 @@
+<title>Charter &amp; Table Read — interface concept prototype</title>
+<style>
+  /* ============================================================
+     Prototype for two of the five "writing interface concepts."
+     Honors the frontend's existing system (warm paper #f0ede6,
+     blue accent #2d5be3, 10px radius). One deliberate addition:
+     the WRITER'S prose renders in serif, the TOOL's chrome in
+     sans — enacting the covenant "the writer's sentences are
+     the writer's."
+     ============================================================ */
+
+  :root {
+    --paper:      #f0ede6;   /* the desk */
+    --surface:    #ffffff;
+    --surface-2:  #faf9f6;
+    --surface-3:  #f4f1ea;
+    --border:     rgba(28,24,18,0.10);
+    --border-2:   rgba(28,24,18,0.16);
+    --ink:        #201d18;
+    --ink-2:      #6b665c;
+    --ink-3:      #a7a094;
+    --accent:     #2d5be3;
+    --accent-bg:  #f3f5ff;
+    --accent-bd:  #c4caff;
+    --for:        #2f7d55;   /* evidence for  */
+    --for-bg:     #eef6f0;
+    --against:    #b4562b;   /* evidence against */
+    --against-bg: #f8efe8;
+    --wet:        #7a63d6;   /* wet-ink provisional */
+    --wet-bg:     #f4f1fb;
+    --dormant:    #b6afa2;
+
+    --shadow: 0 1px 2px rgba(28,24,18,.05), 0 12px 34px rgba(28,24,18,.10);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #201d18;
+      --surface:    #2a2621;
+      --surface-2:  #302b25;
+      --surface-3:  #35302a;
+      --border:     rgba(255,248,236,0.10);
+      --border-2:   rgba(255,248,236,0.18);
+      --ink:        #f2ede3;
+      --ink-2:      #b6afa2;
+      --ink-3:      #837c70;
+      --accent:     #9db2ff;
+      --accent-bg:  #2b3050;
+      --accent-bd:  #3f4a7a;
+      --for:        #7fc79c;
+      --for-bg:     #253328;
+      --against:    #e0a07a;
+      --against-bg: #3a2c22;
+      --wet:        #b7a4f0;
+      --wet-bg:     #322b46;
+      --dormant:    #6f685c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 44px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper:#f0ede6;--surface:#fff;--surface-2:#faf9f6;--surface-3:#f4f1ea;
+    --border:rgba(28,24,18,.10);--border-2:rgba(28,24,18,.16);
+    --ink:#201d18;--ink-2:#6b665c;--ink-3:#a7a094;--accent:#2d5be3;
+    --accent-bg:#f3f5ff;--accent-bd:#c4caff;--for:#2f7d55;--for-bg:#eef6f0;
+    --against:#b4562b;--against-bg:#f8efe8;--wet:#7a63d6;--wet-bg:#f4f1fb;
+    --dormant:#b6afa2;--shadow:0 1px 2px rgba(28,24,18,.05),0 12px 34px rgba(28,24,18,.10);
+  }
+  :root[data-theme="dark"] {
+    --paper:#201d18;--surface:#2a2621;--surface-2:#302b25;--surface-3:#35302a;
+    --border:rgba(255,248,236,.10);--border-2:rgba(255,248,236,.18);
+    --ink:#f2ede3;--ink-2:#b6afa2;--ink-3:#837c70;--accent:#9db2ff;
+    --accent-bg:#2b3050;--accent-bd:#3f4a7a;--for:#7fc79c;--for-bg:#253328;
+    --against:#e0a07a;--against-bg:#3a2c22;--wet:#b7a4f0;--wet-bg:#322b46;
+    --dormant:#6f685c;--shadow:0 1px 2px rgba(0,0,0,.3),0 18px 44px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 34px 22px 72px; }
+
+  /* ---------- masthead ---------- */
+  .mast { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:8px; }
+  .mast h1 {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(26px,4vw,40px);
+    line-height:1.05; margin:0; letter-spacing:-.01em; text-wrap:balance; max-width:16ch;
+  }
+  .mast .kicker { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin:0 0 10px; }
+  .mast p.sub { margin:10px 0 0; color:var(--ink-2); max-width:52ch; font-size:15px; line-height:1.5; }
+  .themebtn {
+    font-family:var(--sans); font-size:12.5px; color:var(--ink-2); background:var(--surface);
+    border:1px solid var(--border-2); border-radius:999px; padding:7px 14px; cursor:pointer;
+    display:inline-flex; gap:7px; align-items:center; transition:.15s;
+  }
+  .themebtn:hover { color:var(--ink); border-color:var(--ink-3); }
+
+  /* ---------- concept switch ---------- */
+  .switch { display:flex; gap:8px; margin:26px 0 22px; flex-wrap:wrap; }
+  .switch button {
+    font-family:var(--sans); text-align:left; cursor:pointer; background:var(--surface);
+    border:1px solid var(--border); border-radius:var(--radius); padding:13px 16px; flex:1; min-width:230px;
+    transition:.16s; color:var(--ink);
+  }
+  .switch button:hover { border-color:var(--ink-3); transform:translateY(-1px); }
+  .switch button.on { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg); }
+  .switch .cn { font-family:var(--serif); font-size:18px; font-weight:600; display:flex; align-items:center; gap:9px; }
+  .switch .cd { font-size:12.5px; color:var(--ink-2); margin-top:3px; line-height:1.35; }
+  .switch .num {
+    font-family:var(--sans); font-size:11px; font-weight:600; color:var(--accent);
+    border:1px solid var(--accent-bd); background:var(--accent-bg); border-radius:6px; padding:2px 6px;
+  }
+
+  /* ---------- stage: desk + pane + director ---------- */
+  .stage { display:grid; grid-template-columns:minmax(0,380px) 1fr; gap:34px; align-items:start; }
+  @media (max-width: 820px){ .stage { grid-template-columns:1fr; } }
+
+  .device {
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    box-shadow:var(--shadow); overflow:hidden; position:relative; align-self:start;
+  }
+  .device .chrome {
+    display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surface-3);
+    border-bottom:1px solid var(--border); font-size:11px; color:var(--ink-3); letter-spacing:.02em;
+  }
+  .device .chrome .dot { width:9px; height:9px; border-radius:50%; background:var(--border-2); }
+  .device .chrome .wordmark { margin-left:auto; font-weight:600; color:var(--ink-2); letter-spacing:.06em; }
+
+  .pane { padding:16px 16px 20px; min-height:520px; }
+  .frame { display:none; animation:fade .32s ease; }
+  .frame.on { display:block; }
+  @keyframes fade { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ .frame.on{animation:none;} }
+
+  /* pane header */
+  .ph { display:flex; align-items:center; gap:8px; padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--border); }
+  .ph .title { font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--ink); }
+  .ph .chips { margin-left:auto; display:flex; gap:6px; }
+  .chip { font-size:11px; color:var(--ink-2); border:1px solid var(--border-2); border-radius:7px; padding:3px 8px; background:var(--surface-2); }
+  .chip.on { color:var(--accent); border-color:var(--accent-bd); background:var(--accent-bg); }
+
+  .lede { font-size:13px; color:var(--ink-2); line-height:1.5; margin:0 0 14px; }
+  .lede b { color:var(--ink); font-weight:600; }
+
+  /* the writer's prose — always serif */
+  .prose { font-family:var(--serif); }
+
+  /* AI question card */
+  .qcard { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:13px 14px; margin:9px 0; }
+  .qcard .lab { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px; }
+  .qcard .q { font-family:var(--serif); font-size:15px; line-height:1.4; color:var(--ink); }
+  .qcard.answered { background:transparent; border-style:dashed; }
+  .qcard .ans { font-family:var(--serif); font-size:13.5px; color:var(--ink-2); font-style:italic; margin-top:7px; padding-left:11px; border-left:2px solid var(--accent-bd); }
+
+  /* wet-ink candidate criterion */
+  .wet { position:relative; border:1px dashed var(--wet); background:var(--wet-bg); border-radius:var(--radius-sm);
+         padding:10px 12px; margin:8px 0; font-family:var(--serif); font-size:14px; line-height:1.4; color:var(--ink); }
+  .wet .tag { font-family:var(--sans); font-size:9.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--wet); display:block; margin-bottom:4px; }
+  .wet.killed { opacity:.55; }
+  .wet.killed .txt { text-decoration:line-through; text-decoration-color:var(--against); }
+  .wet.kept { border-style:solid; border-color:var(--for); background:var(--for-bg); }
+  .wet.kept .tag { color:var(--for); }
+  .wet .verdict { font-family:var(--sans); font-size:11px; color:var(--ink-2); margin-top:6px; font-style:italic; }
+
+  /* settled criterion */
+  .crit { display:flex; gap:10px; padding:11px 4px; border-bottom:1px solid var(--border); }
+  .crit:last-child { border-bottom:0; }
+  .crit .mk { flex:none; font-size:15px; line-height:1.35; }
+  .mk.full { color:var(--for); }
+  .mk.half { color:var(--accent); }
+  .mk.open { color:var(--dormant); }
+  .crit .body { min-width:0; }
+  .crit .ct { font-family:var(--serif); font-size:14px; line-height:1.4; color:var(--ink); }
+  .crit.dim .ct { color:var(--ink-2); }
+  .crit .ev { font-family:var(--sans); font-size:11.5px; color:var(--ink-2); margin-top:5px; display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .crit .ev .go { margin-left:auto; color:var(--ink-3); }
+  .ev .pill { border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:600; }
+  .pill.for { color:var(--for); background:var(--for-bg); }
+  .pill.against { color:var(--against); background:var(--against-bg); }
+  .pill.none { color:var(--dormant); background:var(--surface-2); border:1px dashed var(--border-2); font-weight:500; }
+  .set-note { font-size:11px; color:var(--ink-3); text-align:center; padding:10px 0 2px; font-style:italic; }
+
+  /* worklist */
+  .wl-h { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink); margin:16px 0 8px; }
+  .wl { display:flex; flex-direction:column; gap:7px; }
+  .wl .row { display:flex; gap:10px; align-items:baseline; font-size:13px; }
+  .wl .when { flex:none; width:44px; font-size:10px; font-weight:700; letter-spacing:.08em; color:var(--ink-3); padding-top:2px; }
+  .wl .task { font-family:var(--serif); color:var(--ink); line-height:1.38; }
+  .wl .ref { font-family:var(--sans); font-size:10.5px; color:var(--accent); border:1px solid var(--accent-bd); background:var(--accent-bg); border-radius:5px; padding:0 5px; white-space:nowrap; }
+  .wl .row.mine .when { color:var(--accent); }
+
+  /* evidence detail panel */
+  .evp { border:1px solid var(--border-2); border-radius:var(--radius-sm); overflow:hidden; margin-top:4px; }
+  .evp .head { font-family:var(--serif); font-size:13.5px; color:var(--ink); padding:11px 13px; background:var(--surface-2); border-bottom:1px solid var(--border); font-style:italic; }
+  .evp .grp { padding:10px 13px; }
+  .evp .glab { font-size:10px; letter-spacing:.12em; text-transform:uppercase; font-weight:700; margin-bottom:6px; }
+  .evp .glab.for { color:var(--for); } .evp .glab.against { color:var(--against); }
+  .evp .item { font-family:var(--serif); font-size:12.5px; line-height:1.42; color:var(--ink-2); display:flex; gap:8px; }
+  .evp .item .go { margin-left:auto; font-family:var(--sans); font-size:10.5px; color:var(--accent); white-space:nowrap; align-self:center; }
+  .evp .sep { height:1px; background:var(--border); }
+  .evp .foot { padding:11px 13px; background:var(--surface-2); border-top:1px solid var(--border); }
+  .evp .foot .say { font-size:11px; color:var(--ink-2); font-style:italic; margin-bottom:9px; }
+  .btns { display:flex; gap:6px; flex-wrap:wrap; }
+  .btn { font-family:var(--sans); font-size:11.5px; border-radius:7px; padding:6px 10px; cursor:default; border:1px solid var(--border-2); background:var(--surface); color:var(--ink); }
+  .btn.p { border-color:var(--accent-bd); background:var(--accent-bg); color:var(--accent); }
+  .btn.ghost { color:var(--ink-2); }
+
+  /* nudge banner */
+  .nudge { display:flex; gap:9px; align-items:flex-start; font-size:12px; color:var(--ink); line-height:1.42;
+           background:var(--surface-3); border:1px solid var(--border); border-left:3px solid var(--accent);
+           border-radius:var(--radius-sm); padding:11px 12px; margin-top:16px; }
+  .nudge .pen { color:var(--accent); }
+
+  /* history rows */
+  .hist { border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-top:8px; }
+  .hist .hrow { padding:10px 12px; border-bottom:1px solid var(--border); }
+  .hist .hrow:last-child { border-bottom:0; }
+  .hist .old { font-family:var(--serif); font-size:12.5px; color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--border-2); }
+  .hist .new { font-family:var(--serif); font-size:13.5px; color:var(--ink); margin-top:4px; }
+  .hist .meta { font-family:var(--sans); font-size:10.5px; color:var(--ink-3); margin-top:4px; letter-spacing:.02em; }
+
+  /* ---- Table Read ---- */
+  .cast { display:flex; gap:8px; margin:4px 0 14px; flex-wrap:wrap; }
+  .actor { flex:1; min-width:96px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface-2); }
+  .actor.spot { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg); }
+  .actor .glyph { font-size:16px; }
+  .actor .who { font-family:var(--serif); font-size:13px; font-weight:600; margin-top:3px; }
+  .actor .want { font-size:10.5px; color:var(--ink-2); margin-top:3px; line-height:1.3; }
+
+  .acts { display:flex; gap:6px; margin:2px 0 14px; }
+  .act { flex:1; text-align:center; font-size:11px; letter-spacing:.04em; padding:7px; border-radius:7px; border:1px solid var(--border-2); color:var(--ink-3); background:var(--surface-2); }
+  .act.on { color:var(--ink); border-color:var(--accent-bd); background:var(--accent-bg); }
+  .act b { display:block; font-size:12.5px; letter-spacing:.1em; text-transform:uppercase; }
+
+  .trace { display:flex; flex-direction:column; gap:9px; margin:6px 0 4px; }
+  .trace .prow { display:grid; grid-template-columns:34px 1fr; gap:10px; align-items:center; }
+  .trace .pl { font-family:var(--serif); font-size:12px; color:var(--ink-3); text-align:right; }
+  .lanes { display:flex; flex-direction:column; gap:4px; }
+  .lane { height:6px; border-radius:3px; position:relative; }
+  .lane.smooth   { background:linear-gradient(90deg,var(--for),var(--for)); opacity:.85; }
+  .lane.hesitate { background:repeating-linear-gradient(90deg,var(--accent) 0 7px, transparent 7px 12px); opacity:.85; }
+  .lane.thin     { background:var(--ink-3); opacity:.32; height:3px; margin:1.5px 0; }
+  .lane.brk      { background:linear-gradient(90deg,var(--against) 0 62%, transparent 62%); }
+  .lane.brk::after{ content:"✕"; position:absolute; right:-2px; top:-7px; font-size:12px; color:var(--against); }
+
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:10.5px; color:var(--ink-2); margin:10px 0 2px; }
+  .legend span { display:inline-flex; align-items:center; gap:5px; }
+  .legend i { width:16px; height:5px; border-radius:3px; display:inline-block; }
+
+  .react { font-family:var(--serif); font-size:13px; line-height:1.45; color:var(--ink);
+           background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm);
+           padding:11px 13px; margin-top:12px; }
+  .react .cue { font-family:var(--sans); font-size:11px; color:var(--ink-2); margin-bottom:6px; display:flex; gap:7px; align-items:center; }
+  .react .cue b { color:var(--ink); }
+  .react q { quotes:"“" "”"; }
+  .norule { font-size:11px; color:var(--ink-3); font-style:italic; text-align:center; padding:11px 6px 2px; line-height:1.4; }
+
+  .verdict-box { border:1px dashed var(--accent-bd); border-radius:var(--radius-sm); background:var(--accent-bg); padding:12px 13px; margin-top:12px; }
+  .verdict-box .vl { font-size:11px; letter-spacing:.02em; color:var(--ink-2); margin-bottom:8px; }
+  .verdict-box .vt { font-family:var(--serif); font-size:14px; line-height:1.45; color:var(--ink); }
+  .verdict-box .cursor { display:inline-block; width:2px; height:16px; background:var(--accent); margin-left:1px; vertical-align:-3px; animation:blink 1.05s steps(1) infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+
+  /* ---------- director rail ---------- */
+  .director { align-self:start; position:sticky; top:20px; }
+  .director .eyebrow { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); }
+  .director .storyname { font-family:var(--serif); font-size:22px; font-weight:600; margin:5px 0 2px; line-height:1.1; }
+  .director .storysub { font-size:13px; color:var(--ink-2); margin-bottom:20px; }
+  .steps { display:flex; flex-direction:column; gap:2px; margin-bottom:22px; }
+  .step { display:grid; grid-template-columns:26px 1fr; gap:12px; align-items:start; text-align:left; cursor:pointer;
+          background:none; border:0; font-family:var(--sans); padding:9px 8px; border-radius:10px; color:var(--ink-2); transition:.14s; width:100%; }
+  .step:hover { background:var(--surface-2); }
+  .step.on { background:var(--surface); box-shadow:var(--shadow); color:var(--ink); }
+  .step .n { width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border-2); display:flex; align-items:center; justify-content:center;
+             font-size:12px; font-weight:600; color:var(--ink-3); }
+  .step.on .n, .step.done .n { border-color:var(--accent); color:var(--accent); }
+  .step.on .n { background:var(--accent); color:#fff; border-color:var(--accent); }
+  :root[data-theme="dark"] .step.on .n { color:var(--paper); }
+  @media (prefers-color-scheme: dark){ .step.on .n { color:var(--paper); } }
+  .step .st { font-size:13.5px; font-weight:600; }
+  .step .sd { font-size:12px; color:var(--ink-2); margin-top:2px; line-height:1.4; }
+  .step.on .sd { color:var(--ink-2); }
+
+  .navbtns { display:flex; gap:10px; }
+  .navbtns button { font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; border-radius:10px; padding:11px 16px;
+                    border:1px solid var(--border-2); background:var(--surface); color:var(--ink); flex:1; transition:.14s; }
+  .navbtns button:hover:not(:disabled) { border-color:var(--ink-3); }
+  .navbtns button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  :root[data-theme="dark"] .navbtns button.primary { color:var(--paper); }
+  @media (prefers-color-scheme: dark){ .navbtns button.primary { color:var(--paper); } }
+  .navbtns button:disabled { opacity:.4; cursor:default; }
+
+  .covenant { margin-top:26px; font-size:12px; color:var(--ink-2); line-height:1.55; border-top:1px solid var(--border); padding-top:16px; }
+  .covenant b { color:var(--ink); }
+
+  .footnote { margin-top:44px; border-top:1px solid var(--border); padding-top:18px; font-size:12.5px; color:var(--ink-2); line-height:1.6; max-width:70ch; }
+  .footnote a { color:var(--accent); }
+  .footnote code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; background:var(--surface-3); padding:1px 5px; border-radius:5px; }
+</style>
+
+<div class="wrap">
+  <div class="mast">
+    <div>
+      <p class="kicker">Writing tools · design sketches, made clickable</p>
+      <h1>Two interfaces you can walk end&#8209;to&#8209;end.</h1>
+      <p class="sub">From Saturday's design doc, <i>Five New Interfaces for Thoughtful Writing</i>. These were prose sketches; here are two of them running, with every worked example from the doc baked in. Quick and dirty — but you can click through the whole story.</p>
+    </div>
+    <button class="themebtn" id="themebtn" aria-label="Toggle light and dark">◐ Theme</button>
+  </div>
+
+  <div class="switch" role="tablist" aria-label="Concepts">
+    <button id="tab-charter" class="on" role="tab" aria-selected="true">
+      <span class="cn"><span class="num">01</span> The Charter</span>
+      <span class="cd">Writer &amp; AI negotiate what "good" means, then organize the work around it. <b>Task pane.</b></span>
+    </button>
+    <button id="tab-tableread" role="tab" aria-selected="false">
+      <span class="cn"><span class="num">05</span> The Table Read</span>
+      <span class="cd">Rehearse the document in front of readers who believe first, then doubt. <b>Task pane.</b></span>
+    </button>
+  </div>
+
+  <div class="stage">
+    <!-- ============ DEVICE / TASK PANE ============ -->
+    <div class="device">
+      <div class="chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="wordmark">WORD · TASK PANE</span>
+      </div>
+      <div class="pane" id="pane"><!-- frames injected --></div>
+    </div>
+
+    <!-- ============ DIRECTOR RAIL ============ -->
+    <div class="director">
+      <p class="eyebrow" id="d-eyebrow">Storyboard</p>
+      <div class="storyname" id="d-name"></div>
+      <div class="storysub" id="d-sub"></div>
+      <div class="steps" id="steps"></div>
+      <div class="navbtns">
+        <button id="prev">← Back</button>
+        <button id="next" class="primary">Next →</button>
+      </div>
+      <div class="covenant" id="covenant"></div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Prototype of concepts <b>01 (The Charter)</b> and <b>05 (The Table Read)</b> from
+    <code>docs/design/interface-concepts.md</code>. The other three — Prior Self, Tidelines, and the Loom —
+    are sketched in the doc but not built here. Everything shown is a static walk-through of the doc's own
+    worked examples (Mia's curriculum proposal; Rosa's funding memo); no AI is running. The pane targets the
+    ~380px Word task pane; the writer's own prose is set in serif throughout, the tool's chrome in sans.
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   Frames are authored as HTML strings so the pane can be swapped and
+   stepped without any framework. Each concept = ordered list of
+   { st, sd, html } where st/sd drive the director rail.
+   ------------------------------------------------------------------ */
+
+const PH = (chips) => `
+  <div class="ph"><span class="title">CHARTER</span>
+    <div class="chips">${chips || '<span class="chip">history ▾</span><span class="chip">renew</span>'}</div>
+  </div>`;
+
+const charter = {
+  name: "Mia's curriculum proposal",
+  sub: "One document, negotiated over ~two weeks. The pane never offers to write.",
+  covenant: `<b>What the AI never does here:</b> it asks, quotes, points, and arranges.
+    It gathers evidence linked to specific text; the writer sets every <span style="color:var(--for)">●</span>
+    <span style="color:var(--accent)">◐</span> <span style="color:var(--dormant)">○</span>. Goal drift is data,
+    not failure — old criteria become a fossil record, never a deletion.`,
+  frames: [
+    {
+      st: "The fog",
+      sd: "400 words of throat-clearing. The pane opens with questions, not a draft.",
+      html: PH() + `
+        <p class="lede">Mia has 400 words of throat-clearing for a proposal to the faculty senate. She opens the pane. <b>It does not offer to write.</b> It asks three questions — one at a time.</p>
+        <div class="qcard"><div class="lab">Question 1 of 3</div><div class="q">Who has to say yes?</div></div>
+        <div class="qcard"><div class="lab">Question 2 of 3</div><div class="q">What will they be afraid of?</div></div>
+        <div class="qcard"><div class="lab">Question 3 of 3</div><div class="q">What happens if this document simply doesn't exist?</div></div>
+        <p class="set-note">Goal clarification <i>is</i> the work. The Charter gives it an artifact.</p>`
+    },
+    {
+      st: "Candidate criteria",
+      sd: "Five criteria drafted in \"wet ink.\" Nothing is accepted by default.",
+      html: PH() + `
+        <p class="lede">From Mia's typed answers, the AI drafts five criteria — in a visibly provisional <b>wet-ink</b> style. Inert until she touches each one.</p>
+        <div class="wet killed"><span class="tag">candidate · wet ink</span><span class="txt">The proposal demonstrates innovative pedagogy.</span><div class="verdict">Mia deleted it — "that's resume language, not success."</div></div>
+        <div class="wet kept"><span class="tag">kept — verbatim</span><span class="txt">The provost can repeat my core argument in one sentence.</span><div class="verdict">Kept exactly. She's slightly startled that it's true.</div></div>
+        <div class="wet"><span class="tag">candidate · wet ink</span><span class="txt">A skeptical dean finds the budget section airtight.</span></div>
+        <div class="wet"><span class="tag">candidate · wet ink</span><span class="txt">Reads in under 6 minutes.</span></div>
+        <p class="set-note">Wet-ink items expire if untouched. The writer rewrites or explicitly keeps each.</p>`
+    },
+    {
+      st: "The worklist is born",
+      sd: "Criteria settle. Now / Next / Later items, each citing a criterion.",
+      html: PH() + `
+        <div class="crit"><span class="mk full">●</span><div class="body"><div class="ct">1. The provost can repeat my core argument in one sentence.</div><div class="ev"><span class="pill for">2 for</span><span class="pill against">1 against</span><span class="go">evidence ▸</span></div></div></div>
+        <div class="crit"><span class="mk half">◐</span><div class="body"><div class="ct">2. A skeptical dean finds the budget section airtight.</div><div class="ev"><span class="pill against">1 against</span><span class="go">evidence ▸</span></div></div></div>
+        <div class="crit dim"><span class="mk open">○</span><div class="body"><div class="ct">3. Reads in under 6 minutes.</div><div class="ev"><span class="pill none">no evidence yet — dormant</span></div></div></div>
+        <p class="set-note">● ◐ ○ set by <b>you</b>, never by the AI.</p>
+        <div class="wl-h">Worklist</div>
+        <div class="wl">
+          <div class="row"><span class="when">NOW</span><span class="task">Cite the $40k figure <span class="ref">→ #2</span></span></div>
+          <div class="row"><span class="when">NEXT</span><span class="task">Cut the history section? <span class="ref">→ #3</span></span></div>
+          <div class="row mine"><span class="when">LATER</span><span class="task">One-sentence version of the argument, for the cover email <span class="ref">mine</span></span></div>
+        </div>`
+    },
+    {
+      st: "Working — the evidence",
+      sd: "Days pass; the pane stays quiet. She opens criterion #2's evidence.",
+      html: PH() + `
+        <p class="lede">Mia writes in Word; the pane is silent. At a pause, small counts update. She taps <b>criterion #2</b>.</p>
+        <div class="evp">
+          <div class="head">#2 — "A skeptical dean finds the budget section airtight."</div>
+          <div class="grp"><div class="glab for">For</div>
+            <div class="item"><span>¶14 breaks cost into per-student terms — concrete, checkable.</span><span class="go">go →</span></div>
+          </div>
+          <div class="sep"></div>
+          <div class="grp"><div class="glab against">Against</div>
+            <div class="item"><span>¶16 asserts "roughly $40k" with no source. A skeptical reader stops here.</span><span class="go">go →</span></div>
+          </div>
+          <div class="foot">
+            <div class="say">The AI collects evidence. You set ● ◐ ○.</div>
+            <div class="btns"><span class="btn">mark ◐</span><span class="btn p">mark ●</span><span class="btn ghost">this criterion no longer matters</span></div>
+          </div>
+        </div>
+        <p class="set-note">She reads the AGAINST item, mutters "fine," fixes ¶16 — and flips #2 from ◐ to ● herself.</p>`
+    },
+    {
+      st: "The renegotiation",
+      sd: "Day 9. A dormant criterion becomes a fossil, not a deletion.",
+      html: PH('<span class="chip on">history ▾</span><span class="chip">renew</span>') + `
+        <div class="nudge"><span class="pen">✎</span><div>The Charter is 9 days old and you've stopped touching <b>#3</b>. The draft is now 9 minutes long. Renegotiate?</div></div>
+        <p class="lede" style="margin-top:16px">Mia realizes the real constraint was never length — it was the provost's attention. She rewrites #3. The old wording isn't deleted; it drops into <b>history</b>.</p>
+        <div class="hist">
+          <div class="hrow">
+            <div class="old">3. Reads in under 6 minutes.</div>
+            <div class="new">3. The first page works as a standalone summary.</div>
+            <div class="meta">renegotiated · day 9 · former wording kept as fossil record</div>
+          </div>
+        </div>
+        <p class="set-note">That history <i>is</i> the picture of goal formation. Nothing was lost.</p>`
+    }
+  ]
+};
+
+const PHR = (act1, act2) => `
+  <div class="ph"><span class="title">TABLE READ</span>
+    <div class="chips"><span class="chip">recast</span></div>
+  </div>`;
+
+const CAST = (spot) => `
+  <div class="cast">
+    <div class="actor${spot==='dean'?' spot':''}"><div class="glyph">🜁</div><div class="who">Skeptical dean</div><div class="want">wants the budget to survive scrutiny</div></div>
+    <div class="actor${spot==='officer'?' spot':''}"><div class="glyph">🜂</div><div class="who">Hurried officer</div><div class="want">reading on a phone, between meetings</div></div>
+    <div class="actor${spot==='student'?' spot':''}"><div class="glyph">🜃</div><div class="who">First-year student</div><div class="want">naive-reader control</div></div>
+  </div>`;
+
+const ACTS = (n) => `
+  <div class="acts">
+    <div class="act${n===1?' on':''}"><b>Act I</b>believing</div>
+    <div class="act${n===2?' on':''}"><b>Act II</b>doubting</div>
+  </div>`;
+
+const tableread = {
+  name: "Rosa's funding memo",
+  sub: "One reading, minutes. Believing before doubting — the order is load-bearing.",
+  covenant: `<b>What the AI never does here:</b> it offers no fixes. Readers are visibly
+    fictional instruments — "cast," "in character." Act I (believing) always precedes Act II (doubting);
+    the order is non-configurable. The trace is the feedback. <b>Rosa writes the verdict.</b>`,
+  frames: [
+    {
+      st: "Casting the room",
+      sd: "Choosing readers forces the question: who actually reads this?",
+      html: PHR() + `
+        <p class="lede">Rosa is about to send a funding memo. Casting the panel forces a realization: the real reader isn't "the committee" — it's <b>one hurried program officer, reading on a phone between meetings.</b></p>
+        ${CAST('officer')}
+        <p class="set-note">That reframe alone changes her opening. Casting is itself the reflection.</p>`
+    },
+    {
+      st: "Act I — believing",
+      sd: "Every reader inhabits the memo at its strongest, first.",
+      html: PHR() + ACTS(1) + `
+        <p class="lede">Each reader gives the most generous account they can. Where a reader <b>can't</b> produce a strong believing retelling, that absence is the feedback — no criticism needed.</p>
+        <div class="trace">
+          <div class="prow"><div class="pl">¶1</div><div class="lanes"><div class="lane smooth"></div><div class="lane smooth"></div><div class="lane smooth"></div></div></div>
+          <div class="prow"><div class="pl">¶2</div><div class="lanes"><div class="lane smooth"></div><div class="lane hesitate"></div><div class="lane smooth"></div></div></div>
+          <div class="prow"><div class="pl">¶3</div><div class="lanes"><div class="lane brk"></div><div class="lane smooth"></div><div class="lane thin"></div></div></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--for)"></i>smooth</span>
+          <span><i class="hesitate" style="background:repeating-linear-gradient(90deg,var(--accent) 0 5px,transparent 5px 9px)"></i>re-read</span>
+          <span><i style="background:var(--ink-3);opacity:.4"></i>skim</span>
+          <span><i style="background:linear-gradient(90deg,var(--against) 0 60%,transparent 60%)"></i>stopped</span>
+        </div>
+        <div class="react">
+          <div class="cue">🜁 <b>dean</b>, ¶3 · believing</div>
+          <q>I take the author to be arguing that cost and fairness are the same case — I can't yet retell the fairness half.</q>
+        </div>
+        <p class="norule">The officer's generous retelling is better organized than Rosa's memo. She steals the order of her own argument back from her reader's summary.</p>`
+    },
+    {
+      st: "Act II — doubting",
+      sd: "Only now: where each reader stalls, in character.",
+      html: PHR() + ACTS(2) + `
+        <p class="lede">Now the doubting pass, paragraph by paragraph. The officer's trace <b>breaks at ¶3</b> and thins to a skim across the methodology. The student sails through ¶3 — so the problem is <b>officer-specific</b>: stakes, not clarity.</p>
+        <div class="trace">
+          <div class="prow"><div class="pl">¶1</div><div class="lanes"><div class="lane smooth"></div><div class="lane smooth"></div><div class="lane smooth"></div></div></div>
+          <div class="prow"><div class="pl">¶2</div><div class="lanes"><div class="lane smooth"></div><div class="lane smooth"></div><div class="lane smooth"></div></div></div>
+          <div class="prow"><div class="pl">¶3</div><div class="lanes"><div class="lane hesitate"></div><div class="lane brk"></div><div class="lane smooth"></div></div></div>
+          <div class="prow"><div class="pl">¶4</div><div class="lanes"><div class="lane smooth"></div><div class="lane thin"></div><div class="lane smooth"></div></div></div>
+        </div>
+        <div class="legend">
+          <span>🜁 dean</span><span>🜂 officer</span><span>🜃 student</span>
+        </div>
+        <div class="react">
+          <div class="cue">🜂 <b>officer</b>, ¶3 · doubting</div>
+          <q>"What does this cost me?" arrives three paragraphs too late — I've already started skimming.</q>
+        </div>`
+    },
+    {
+      st: "Rosa's verdict",
+      sd: "No rewrite is suggested anywhere. Rosa writes the plan.",
+      html: PHR() + ACTS(2) + `
+        <p class="norule" style="text-align:left; font-size:12px; color:var(--ink-2)">No rewrite suggestions appear anywhere on the screen. The room built the gym; Rosa does the lift.</p>
+        <div class="verdict-box">
+          <div class="vl">Your verdict on this reading — one line:</div>
+          <div class="vt">Move costs to ¶2, cut half the method.<span class="cursor"></span></div>
+        </div>
+        <p class="set-note">Rosa — not the panel — writes the revision plan. That refusal is the product.</p>`
+    }
+  ]
+};
+
+/* -------------------- driver -------------------- */
+const CONCEPTS = { charter, tableread };
+let key = 'charter', idx = 0;
+
+const pane = document.getElementById('pane');
+const steps = document.getElementById('steps');
+const dName = document.getElementById('d-name');
+const dSub = document.getElementById('d-sub');
+const cov = document.getElementById('covenant');
+const prev = document.getElementById('prev');
+const next = document.getElementById('next');
+
+function render(){
+  const c = CONCEPTS[key];
+  const f = c.frames[idx];
+  pane.innerHTML = f.html;
+  pane.scrollTop = 0;
+  dName.textContent = c.name;
+  dSub.textContent = c.sub;
+  cov.innerHTML = c.covenant;
+
+  steps.innerHTML = c.frames.map((fr,i)=>`
+    <button class="step ${i===idx?'on':''} ${i<idx?'done':''}" data-i="${i}">
+      <span class="n">${i<idx?'✓':i+1}</span>
+      <span><span class="st">${fr.st}</span><span class="sd">${fr.sd}</span></span>
+    </button>`).join('');
+  steps.querySelectorAll('.step').forEach(b=>b.onclick=()=>{ idx=+b.dataset.i; render(); });
+
+  prev.disabled = idx===0;
+  next.textContent = idx===c.frames.length-1 ? 'Restart ↻' : 'Next →';
+}
+
+prev.onclick = ()=>{ if(idx>0){ idx--; render(); } };
+next.onclick = ()=>{ const n=CONCEPTS[key].frames.length; idx = (idx+1)%n; render(); };
+
+function pick(k){
+  key=k; idx=0;
+  document.getElementById('tab-charter').classList.toggle('on', k==='charter');
+  document.getElementById('tab-tableread').classList.toggle('on', k==='tableread');
+  document.getElementById('tab-charter').setAttribute('aria-selected', k==='charter');
+  document.getElementById('tab-tableread').setAttribute('aria-selected', k==='tableread');
+  render();
+}
+document.getElementById('tab-charter').onclick = ()=>pick('charter');
+document.getElementById('tab-tableread').onclick = ()=>pick('tableread');
+
+/* theme toggle */
+const root = document.documentElement;
+document.getElementById('themebtn').onclick = ()=>{
+  const cur = root.getAttribute('data-theme')
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+  root.setAttribute('data-theme', cur==='dark' ? 'light':'dark');
+};
+
+/* keyboard */
+addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight') next.click();
+  if(e.key==='ArrowLeft') prev.click();
+});
+
+render();
+</script>

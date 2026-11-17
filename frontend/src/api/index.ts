@@ -1,39 +1,40 @@
 /**
- * Resolves the backend base URL.
+ * Resolves the backend's origin.
  *
- * Everywhere except the Google Docs sidebar a relative `/api` works (Word's dev
- * server and the production web host both serve the API under the same origin).
+ * Whatever origin served this bundle also serves the backend API (and the built
+ * pages, such as account.html), so we discover it at runtime instead of baking
+ * it in at build time — one built image is deployed to both staging and
+ * production, and a compile-time constant would send the staging sidebar to the
+ * production backend.
  *
- * The Google Docs sidebar is different: its HTML is served from a Google origin,
- * so a relative `/api` would hit Google's domain instead of the backend:
+ * The Google Docs sidebar is the case that needs the script tag: the page
+ * itself is on a Google origin, but `sidebar.html` injects our bundle as a
+ * classic <script> whose `src` points at the backend, and `currentScript` is
+ * set while that script (and so this module) runs.
  *
- * - Production: the bundle is loaded from an external URL (see the Apps Script sidebar). If
- *   `GDOCS_BACKEND_URL` is provided at build time, use it; otherwise derive the backend origin
- *   from the bundle script's own URL.
- * - Development: the bundle is loaded from the dev server (e.g. localhost:3001), which proxies
- *   `/api` to the Python backend. We derive that origin from this script's own URL, so no
- *   tunnel (ngrok) or hardcoded port is needed.
+ * When run as a Word task pane or in the standalone editor, the bundle
+ * is a module script, where `document.currentScript` is null by spec. That's
+ * the `window.location.origin` path; in development the dev server proxies
+ * /api through to the backend, so localhost is the right origin there too.
  */
-function resolveServerUrl(): string {
-	if (typeof window === 'undefined' || !window.RUNNING_IN_GOOGLE_DOCS) {
-		return '/api';
+function resolveServerOrigin(): string {
+	if (typeof document === 'undefined') {
+		// Not a browser (e.g. unit tests). Actual requests are mocked, so the URL
+		// doesn't matter; an empty origin keeps every URL root-relative.
+		return '';
 	}
-	// Production: deployed backend origin injected at build time (see the Google
-	// Docs webpack config's DefinePlugin). Empty string in dev builds.
-	const deployed = process.env.GDOCS_BACKEND_URL;
-	if (deployed) {
-		return `${deployed}/api`;
-	}
-	// Development: the bundle's own origin is the dev server, which proxies /api.
+
+	// Non-null only while a classic <script> executes (the Google Docs bundle).
 	const script = document.currentScript as HTMLScriptElement | null;
 	if (script?.src) {
-		return `${new URL(script.src).origin}/api`;
+		return new URL(script.src).origin;
 	}
-	// No script src to read (e.g. inlined bundle): fall back to a relative /api.
-	return '/api';
+	// Module script: the page's own origin serves the API.
+	return window.location.origin;
 }
 
-export const SERVER_URL = resolveServerUrl();
+export const SERVER_ORIGIN = resolveServerOrigin();
+export const SERVER_URL = `${SERVER_ORIGIN}/api`;
 
 // Re-export editor APIs
 export { wordEditorAPI } from './wordEditorAPI';
@@ -59,24 +60,6 @@ export function detectPlatform(): 'word' | 'google-docs' | 'standalone' {
 	return 'standalone';
 }
 
-// Define a type for payload. Includes at least: eventType and username
-export interface LogPayload {
-	username: string;
-	event: string;
-	// biome-ignore lint/suspicious/noExplicitAny: Logs should be able to hold anything serializable
-	[key: string]: any;
-}
-
-export function log(payload: LogPayload) {
-	const payloadWithTimestamp = {
-		...payload,
-		timestamp: Date.now() / 1000,
-	};
-	return fetch(`${SERVER_URL}/log`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify(payloadWithTimestamp),
-	});
-}
+// Event logging moved to the consent-aware, authenticated `useLog` hook
+// (@/hooks/useLog) — the server now derives identity from the session and
+// requires a Bearer token, so logging must run inside the auth context.

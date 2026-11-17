@@ -5,6 +5,9 @@ export enum PageName {
 	Chat = 'chat',
 	Draft = 'draft',
 	TagLinker = 'tag-linker',
+	MyWords = 'my-words',
+	Tools = 'tools',
+	Workbench = 'workbench',
 }
 
 export enum OverallMode {

@@ -1,6 +1,6 @@
 # Google Docs Add-on
 
-This folder contains the Google Apps Script code for the Writing Tools Google Docs add-on.
+This folder contains the Google Apps Script code for the Thoughtful Google Docs add-on.
 
 ## Architecture
 
@@ -76,14 +76,14 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
    ```bash
    cd google-docs-addon
    rm .clasp.json
-   clasp create --type docs --title "Writing Tools"
+   clasp create --type docs --title "Thoughtful"
    ```
    Google may show another authorization screen — click **Allow**.
    This creates a new `.clasp.json` with your own `scriptId`.
 
    > **Alternative (if `clasp create` still gives errors):**
    > 1. Go to https://script.google.com and click **New project**
-   > 2. Rename it to "Writing Tools"
+   > 2. Rename it to "Thoughtful"
    > 3. Copy the script ID from the URL: `https://script.google.com/home/projects/<SCRIPT_ID>/edit`
    > 4. Create `.clasp.json` manually:
    >    ```json
@@ -102,12 +102,12 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
    > **If `clasp open` is not recognized:**
    > - Make sure clasp is installed globally: `npm install -g @google/clasp`
    > - On Windows, ensure the global npm bin folder (`%APPDATA%\npm`) is in your PATH
-   > - **Alternative:** Open https://script.google.com directly and find your "Writing Tools" project, or hover over it in the project list and click **Open Document**
+   > - **Alternative:** Open https://script.google.com directly and find your "Thoughtful" project, or hover over it in the project list and click **Open Document**
 
    In the Apps Script editor: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
 
 7. **First time opening the sidebar in Google Docs:**
-   Go to **Extensions → Writing Tools → Open Writing Tools**.
+   Go to **Extensions → Thoughtful → Open Thoughtful**.
    Google will show an authorization screen — click **Review Permissions** → select your Google account → click **Allow**.
    This only happens once.
 
@@ -116,35 +116,51 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
 ```bash
 cd frontend
 npm install       # only needed first time
-npm run dev-server:google-docs
+npm run dev-server
 ```
 
-Wait for `webpack compiled successfully`, then open your Google Doc and go to:
-**Extensions → Writing Tools → Open Writing Tools**
+Wait for Vite to print its local URL, then open your Google Doc and go to:
+**Extensions → Thoughtful → Open Thoughtful**
 
+No tunneling/ngrok is needed — the sidebar loads straight from localhost, and
+the dev server proxies `/api` to the local backend.
 
-
-### Building the Frontend for Google Docs (Production)
+### Building the Frontend for Google Docs
 
 ```bash
 cd frontend
+npm run build          # the Word/editor multi-page build
 npm run build:google-docs
 ```
 
-This generates `dist-gdocs/sidebar-bundled.html` with the full React app inlined.
+`build:google-docs` (`BUILD_TARGET=google-docs vite build`, see
+`frontend/vite.config.ts`) emits two files into the shared `dist/`:
 
-### Development vs. production sidebar
+- `google-docs.bundle.js` — a single self-contained IIFE with every image and
+  font inlined as base64
+- `google-docs.css` — the extracted stylesheet
 
-There is no runtime dev/prod flag — the two modes are just two versions of
-`sidebar.html`:
+It builds into the same `dist/` with `emptyOutDir: false`, so run the plain
+`npm run build` first. Both commands run in the repo-root `Dockerfile`, which
+produces one image that serves the built frontend and the backend together.
 
-- **Development:** the `sidebar.html` checked into this repo loads the React bundle
-  and CSS **directly from the local dev server** at `http://localhost:3001`
-  (started by `npm run dev-server:google-docs`). No tunneling/ngrok is needed — the
-  sidebar points straight at localhost.
-- **Production:** `npm run build:google-docs` produces
-  `dist-gdocs/sidebar-bundled.html` with all JS/CSS inlined; that file is what you
-  `clasp push` for a real deployment.
+### Choosing which build the sidebar loads
+
+`sidebar.html` is the same file in every environment; it picks a source at
+runtime from the **document title**, so no emails or flags are hard-coded:
+
+- title contains `[dev]` → the sidebar shows a picker (localhost / staging /
+  prod) and you choose which build to load
+- otherwise → it loads the production bundle automatically
+
+The chosen base URL is used for both `google-docs.bundle.js` and
+`google-docs.css`, and the bundle then derives its **backend** origin from its
+own `<script src>` (`frontend/src/api/index.ts`). Picking "staging" therefore
+talks to the staging backend, not production — nothing environment-specific is
+baked in at build time.
+
+`sidebar.html` itself is what you `clasp push`; it is not part of the frontend
+build output.
 
 ## Key Differences from Word Add-in
 
@@ -156,15 +172,17 @@ There is no runtime dev/prod flag — the two modes are just two versions of
 
 ## OAuth Scopes
 
-The add-on requests these scopes (auto-detected from API usage; no explicit
-`oauthScopes` block in `appsscript.json`):
+The add-on requests these scopes, declared explicitly in the `oauthScopes` block
+of `appsscript.json`:
 
-- `documents.currentonly` - Access only the current document
-- `script.container.ui` - Display sidebars and dialogs
-- `userinfo.email` - Identify the current user
+- `documents.currentonly` — read/edit only the current document (`DocumentApp`)
+- `script.container.ui` — show the add-on menu and sidebar (`DocumentApp.getUi()`)
+- `userinfo.email` — identify the current user (`Session.getActiveUser()`)
 
-Apps Script no longer makes outbound HTTP calls (the backend is called directly by
-the React app), so `script.external_request` is no longer requested.
+Apps Script makes no outbound HTTP calls: the React sidebar fetches the backend
+(and its own JS/CSS bundle) directly from the browser, which needs no Apps Script
+scope. So `script.external_request` and `urlFetchWhitelist` are **not** declared —
+don't re-add them unless you introduce a `UrlFetchApp` call in `Code.gs`.
 
 ## Deployment
 
@@ -194,12 +212,3 @@ the React app), so `script.external_request` is no longer requested.
 
 ### Quota limits
 - Script runtime: 6 minutes max per execution
-
-
-### Scopes we probably need
-
-| Name | Oauth Scope |
-|---|---|
-| See, edit, create, and delete all your Google Docs documents | https://www.googleapis.com/auth/documents |
-| Display and run third-party web content in prompts and sidebars inside Google applications | https://www.googleapis.com/auth/script.container.ui |
-| See your primary Google Account email address	| https://www.googleapis.com/auth/userinfo.email |

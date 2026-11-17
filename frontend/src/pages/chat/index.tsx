@@ -1,34 +1,140 @@
-import { streamText, type ModelMessage } from 'ai';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
-import { Remark } from 'react-remark';
+import { isStepCount, type ModelMessage } from 'ai';
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from 'react';
+import {
+	AiOutlineArrowDown,
+	AiOutlinePlus,
+	AiOutlineSend,
+} from 'react-icons/ai';
 
-import { OPENAI_MODEL, openai } from '@/api/openai';
-import { ChatContext } from '@/contexts/chatContext';
+import {
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { streamParts } from '@/api/generate';
+import { chatLog } from '@/api/logging';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
+import { GenerationErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import {
+	DocJumpStatus,
+	DocTextMarkdown,
+	jumpToDocText,
+	useDocJump,
+} from '@/components/docTextLink';
+import { ChatContext, recordSeen } from '@/contexts/chatContext';
+import {
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
+import { canEdit } from '@/docTools/editor';
+import { isEditToolName, toEditOp } from '@/docTools/editTools';
+import { previewOpChanges, type ChangePreview } from '@/docTools/preview';
+import { locateProposal } from '@/docTools/report';
+import { undoEdit } from '@/docTools/undo';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
+
+import { chatTools, type ProposalResult } from './chatTools';
+import { ProposalCard } from './ProposalCard';
 import classes from './styles.module.css';
+import {
+	answerProposal,
+	DECLINED_REASON,
+	displayTranscript,
+	documentContext,
+	pendingProposals,
+	setAsideReason,
+	writerTurn,
+	type ProposalItem,
+} from './transcript';
 
 const suggestionPrompts = [
 	'What is my main argument?',
 	'How can I improve clarity?',
 	'Is my structure logical?',
 	'What am I missing?',
+	'What could I cut?',
 ];
 
+/**
+ * The chat's system prompt. It is passed as the `instructions` option on the
+ * generation call and deliberately kept *out* of the transcript: ai@7 rejects a
+ * system-role message inside `messages` with "System messages are not allowed
+ * in the prompt or messages fields."
+ */
+const CHAT_INSTRUCTIONS = `\
+You are a non-directive writing coach: help the user improve their writing by asking questions, reflecting back what you see, and pointing at specific passages, so the thinking and the words stay theirs. Be concise. In your replies, don't write new or reworded text for their document: no example sentences, rewrites, or fill-in-the-blank drafts.
+
+Each of the user's messages starts with a <document_context> block that the app attaches; the user doesn't see it and didn't write it. On their first message it holds the whole document, with paragraphs numbered like [3]; on every message it shows the text around their cursor or selection, marked with <<CURSOR>> or <<SELECTION>> tags. If the user mentions "here" or "this", assume they mean that area. When the user has changed the document since you last saw it, the block says what changed; call \`view\` when you need the whole current text. The paragraph numbers are for your tools; the user doesn't see them, so mentioning them might confuse the user.
+
+When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks or paragraph numbers. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
+
+/** Added to the instructions where the host can apply edits. */
+const EDIT_INSTRUCTIONS = `\
+You can also propose edits to the document with \`str_replace\`, \`insert\`, and \`move\`. These tools are the one sanctioned exception to the rule against writing text for the user, and using them is not a violation of it: the app rejects any proposal whose wording isn't lifted from the user's own words (their document and their messages to you), and the user sees each proposal and accepts or declines it. So an edit can cut, reorder, split, merge, or restore the user's words, but it can't introduce yours.
+
+Switch between coaching and editing based on what would help most right now:
+- Coach when the problem needs the user's judgment or new thinking: an unclear claim, missing evidence, an argument that doesn't hold together. An edit can't supply ideas they haven't written.
+- Propose an edit when the user asks for one, or when the fix is mechanical given their own words: a sentence buried at the end that belongs first, a repeated phrase, a paragraph in the wrong place, a tangent to trim. Explaining such a fix only for them to retype it wastes their time.
+Propose one edit at a time, and say in a sentence why. Don't also quote the new wording in your reply; the user sees it in the proposal. If a proposal is rejected for using words that aren't theirs, rephrase it from their words or ask them how they'd put it; don't fall back to suggesting your own wording in the reply. If the user declines or sets one aside, don't propose it again; go back to talking it through.`;
+
+/** Runaway cap on model steps (each tool call is a step) per writer turn. */
+const MAX_STEPS = 6;
+
 export default function Chat() {
-	const { chatMessages, updateChatMessages } = useContext(ChatContext);
+	const {
+		chatMessages,
+		updateChatMessages,
+		docState,
+		appliedEdits,
+		setAppliedEdits,
+	} = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
+	const { brief } = useDocBrief();
+	const log = useLog();
+	// Read at send time, like the document context is, so a brief the writer
+	// just edited applies to the very next message.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
+	// The transcript as of now, for tool calls that run mid-stream.
+	const messagesRef = useRef(chatMessages);
+	messagesRef.current = chatMessages;
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
+	const [errorInfo, setErrorInfo] = useState<GenerationErrorInfo | null>(
+		null,
+	);
+	/**
+	 * The message of a failed turn that was rolled back out of the transcript.
+	 * Only such a turn can be retried — retrying one still in the transcript
+	 * would send it twice.
+	 */
+	const [failedMessage, setFailedMessage] = useState<{
+		text: string;
+		source: 'input' | 'suggested';
+	} | null>(null);
+	/** Why an Undo was refused, by the proposal's tool call. */
+	const [undoErrors, setUndoErrors] = useState<Record<string, string>>({});
 
 	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
 	const handleScroll = useCallback(() => {
 		const container = messagesContainerRef.current;
 		if (!container) return;
-		const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+		const isNearBottom =
+			container.scrollHeight -
+				container.scrollTop -
+				container.clientHeight <
+			100;
 		setShowScrollButton(!isNearBottom);
 	}, []);
 
@@ -40,61 +146,85 @@ export default function Chat() {
 		}
 	}, []);
 
-	// Auto-scroll when new messages arrive
-	useEffect(() => {
+	// Auto-scroll when new messages arrive. `showScrollButton` is read but must stay
+	// non-reactive — a scroll should fire on new messages, not when the button toggles.
+	// useEffectEvent keeps that read out of the dependency array, so the effect runs
+	// only on chatMessages and no exhaustive-deps suppression is needed.
+	const scrollOnNewMessages = useEffectEvent(() => {
 		if (!showScrollButton) {
 			messagesContainerRef.current?.scrollTo({
 				top: messagesContainerRef.current.scrollHeight,
 				behavior: 'smooth',
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [chatMessages]);
+	});
 
-	const docContext = useDocContext(editorAPI);
+	/**
+	 * The writer's message from the moment they send it until it joins the
+	 * transcript. Reading the document first takes a host round-trip (slow on
+	 * Google Docs), and without this the click looks like it did nothing.
+	 */
+	const [pendingText, setPendingText] = useState<string | null>(null);
 
-	const docContextMessageContent =
-		docContext.selectedText === ''
-			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
-
-	let messagesWithCurDocContext = chatMessages;
-	if (chatMessages.length === 0) {
-		// Initialize the chat with the system message and the document-context message.
-		const systemMessage = {
-			role: 'system',
-			content:
-				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
-		};
-
-		const docContextMessage = {
-			role: 'user',
-			content: docContextMessageContent,
-		};
-
-		const initialAssistantMessage = {
-			role: 'assistant',
-			content: 'What do you think about your document so far?',
-		};
-		messagesWithCurDocContext = [
-			systemMessage,
-			docContextMessage,
-			initialAssistantMessage,
-		];
-	} else {
-		// Update the document context message with the current selection.
-		messagesWithCurDocContext[1].content = docContextMessageContent;
-	}
 	useEffect(() => {
-		updateChatMessages(messagesWithCurDocContext);
-	}, [messagesWithCurDocContext, updateChatMessages]);
+		scrollOnNewMessages();
+	}, [chatMessages, pendingText]);
+
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const docJump = useDocJump('chat');
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
 
-	const visibleMessages =
-		messagesWithCurDocContext.length > 3 ? messagesWithCurDocContext.slice(3) : [];
+	/**
+	 * The reply streaming in, shown as a bubble after the transcript until the
+	 * turn finishes and its messages join the transcript. Null when idle.
+	 */
+	const [streamingText, setStreamingText] = useState<string | null>(null);
+
+	const visibleMessages = displayTranscript(chatMessages);
+	if (pendingText !== null) {
+		visibleMessages.push({ role: 'user', text: pendingText });
+	}
+	if (streamingText !== null) {
+		visibleMessages.push({ role: 'assistant', text: streamingText });
+	}
+
+	/**
+	 * Previews of the proposal awaiting the writer, against the document as it
+	 * is when the proposal arrives. Keyed by tool call so a stale preview is
+	 * never shown on a newer card.
+	 */
+	const [pendingPreview, setPendingPreview] = useState<{
+		toolCallId: string;
+		previews: ChangePreview[] | null;
+	} | null>(null);
+	const pending = pendingProposals(chatMessages)[0] as
+		| ProposalItem
+		| undefined;
+	const pendingId = pending?.toolCallId;
+	const showPending = useEffectEvent(async (proposal: ProposalItem) => {
+		if (!isEditToolName(proposal.toolName)) return;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		let previews: ChangePreview[] | null = null;
+		try {
+			previews = previewOpChanges(await editorAPI.getParagraphs(), op);
+		} catch {
+			// The writer changed the text since the proposal was checked; the
+			// card still shows the summary, and Accept reports the failure.
+		}
+		setPendingPreview({ toolCallId: proposal.toolCallId, previews });
+		// Deliberately not selecting the target here: the writer may be typing
+		// in the document, and a selection that appears under them gets
+		// overwritten by the next keystroke. The card's "Show in document" does
+		// it on request.
+	});
+	useEffect(() => {
+		if (pending) void showPending(pending);
+		// Only when a different proposal starts waiting.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pendingId]);
 
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
@@ -114,50 +244,308 @@ export default function Chat() {
 		};
 	}, []);
 
-	async function submitMessage(text: string) {
+	/**
+	 * Start a request and show it as under way (typing indicator, input
+	 * disabled) straight away — before any slow host call the request needs
+	 * first. Pass the controller on to {@link runModel}.
+	 */
+	function beginRequest(): AbortController {
 		// Only one active request is allowed; cancel any previous stream first.
 		activeRequestControllerRef.current?.abort();
 		const requestController = new AbortController();
 		activeRequestControllerRef.current = requestController;
 
 		updateSendingMessage(true);
-
-		let newMessages = [
-			...messagesWithCurDocContext,
-			{ role: 'user', content: text },
-			{ role: 'assistant', content: '' },
-		];
-
-		updateChatMessages(newMessages);
+		setErrorInfo(null);
+		setFailedMessage(null);
+		setStreamingText('');
 		setShowScrollButton(false);
-		updateMessage('');
+		return requestController;
+	}
 
+	/** Back to idle, unless a newer request has already replaced this one. */
+	function endRequest(requestController: AbortController) {
+		if (activeRequestControllerRef.current === requestController) {
+			activeRequestControllerRef.current = null;
+			updateSendingMessage(false);
+			setStreamingText(null);
+			setPendingText(null);
+		}
+	}
+
+	/**
+	 * Run the model on `messages` (which end with whatever it should respond
+	 * to: a writer turn, or the answer to a proposal) and add its reply to the
+	 * transcript. `rollback` runs if it fails before saying anything.
+	 */
+	async function runModel(
+		requestController: AbortController,
+		messages: ModelMessage[],
+		rollback: () => void,
+	) {
+		updateChatMessages(messages);
+		messagesRef.current = messages;
+		setPendingText(null);
+
+		const editing = canEdit(editorAPI);
+		const { tools, toolApproval } = makeTools();
+		let streamed = '';
 		try {
-			const result = streamText({
-				model: openai.chat(OPENAI_MODEL),
-				messages: newMessages.slice(0, -1) as ModelMessage[],
-				maxOutputTokens: 1024,
+			const parts = streamParts({
+				model: languageModel,
+				providerOptions: {
+					openai: {
+						...openaiProviderOptions.openai,
+						// One proposal at a time.
+						parallelToolCalls: false,
+					},
+				},
+				instructions: editing
+					? `${CHAT_INSTRUCTIONS}\n\n${EDIT_INSTRUCTIONS}`
+					: CHAT_INSTRUCTIONS,
+				messages,
+				tools,
+				toolApproval,
+				stopWhen: isStepCount(MAX_STEPS),
 				abortSignal: requestController.signal,
 			});
 
-			for await (const delta of result.textStream) {
-				// Need to make a new object to force React to update.
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += delta;
-				updateChatMessages(newMessages);
+			let next = await parts.next();
+			while (!next.done) {
+				const part = next.value;
+				if (part.type === 'text-delta') {
+					streamed += part.text;
+					setStreamingText(streamed);
+				} else if (part.type === 'text-start' && streamed !== '') {
+					// A new text block after a tool call: keep it a paragraph apart,
+					// as the finished transcript renders it.
+					streamed += '\n\n';
+				}
+				next = await parts.next();
 			}
+			if (requestController.signal.aborted) return;
+			updateChatMessages([...messages, ...next.value]);
+			chatLog.responseCompleted(log, {
+				responseLength: streamed.length,
+			});
 		} catch (error) {
 			if (requestController.signal.aborted) {
 				return;
 			}
+			const info = describeGenerationError(error);
 			console.error('Error while streaming chat response:', error);
+			// Nothing streamed: roll back. If part of a reply did arrive, keep it
+			// and just show the error under it.
+			if (streamed.trim() === '') {
+				rollback();
+			} else {
+				updateChatMessages([
+					...messages,
+					{ role: 'assistant', content: streamed },
+				]);
+			}
+			setErrorInfo(info);
+			chatLog.responseError(log, {
+				error: info.detail,
+				code: info.code,
+			});
 		} finally {
 			// Ignore stale completions from older requests that were already replaced.
-			if (activeRequestControllerRef.current === requestController) {
-				activeRequestControllerRef.current = null;
-				updateSendingMessage(false);
-			}
+			endRequest(requestController);
 		}
+	}
+
+	function makeTools() {
+		return chatTools({
+			editor: editorAPI,
+			docState,
+			briefText: () => Object.values(briefRef.current),
+			messages: () => messagesRef.current,
+			onApplied: (toolCallId, edit) =>
+				setAppliedEdits((prev) => ({ ...prev, [toolCallId]: edit })),
+			log,
+		});
+	}
+
+	function logEdit(
+		outcome: Parameters<typeof chatLog.edit>[1],
+		proposal: ProposalItem,
+	) {
+		if (!isEditToolName(proposal.toolName)) return;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		void chatLog.edit(log, outcome, {
+			tool: proposal.toolName,
+			kind: op.kind,
+			toolCallId: proposal.toolCallId,
+			proposal: op,
+		});
+	}
+
+	async function submitMessage(text: string, source: 'input' | 'suggested') {
+		chatLog.messageSent(log, { message: text, source });
+		updateMessage('');
+		const requestController = beginRequest();
+		setPendingText(text);
+
+		// A proposal still open when the writer moves on is set aside: it gets
+		// its answer before their turn, so the model knows what happened to it.
+		let base = chatMessages;
+		for (const proposal of pendingProposals(chatMessages)) {
+			base = [
+				...base,
+				answerProposal(proposal, {
+					approved: false,
+					reason: setAsideReason(text),
+				}),
+			];
+			logEdit('set_aside', proposal);
+		}
+
+		// Pull the current document context at send time. The first turn also
+		// carries the whole document, numbered as `view` numbers it; later ones
+		// a note of what the writer changed since the model last saw it.
+		let docContext: DocContext;
+		let paragraphs: string[];
+		try {
+			// Independent reads, so one wait instead of two.
+			[docContext, paragraphs] = await Promise.all([
+				refreshDocContext(),
+				editorAPI.getParagraphs(),
+			]);
+		} catch (error) {
+			if (requestController.signal.aborted) return;
+			console.error('Error reading the document for chat:', error);
+			endRequest(requestController);
+			// Nothing was sent: hand the text back so Retry sends it once.
+			updateMessage(text);
+			setFailedMessage({ text, source });
+			setErrorInfo({
+				message:
+					"Couldn't read your document, so nothing was sent. Try again.",
+				detail: error instanceof Error ? error.message : String(error),
+				retryable: true,
+			});
+			return;
+		}
+		// Started over (or sent again) while the document was being read.
+		if (requestController.signal.aborted) return;
+		const previousBaseline = docState.baseline;
+		const context = documentContext({
+			docContext,
+			brief: formatDocBriefForPrompt(briefRef.current),
+			paragraphs,
+			baseline: chatMessages.length === 0 ? null : previousBaseline,
+		});
+		recordSeen(docState, paragraphs);
+
+		await runModel(
+			requestController,
+			[...base, writerTurn(context, text)],
+			() => {
+				// Hand the text back to the input box, so Retry re-sends it once
+				// rather than duplicating the turn.
+				updateChatMessages(chatMessages);
+				// The model never saw this turn's context either.
+				docState.baseline = previousBaseline;
+				updateMessage(text);
+				setFailedMessage({ text, source });
+			},
+		);
+	}
+
+	async function acceptProposal(proposal: ProposalItem) {
+		logEdit('accepted', proposal);
+		const requestController = beginRequest();
+		let result: ProposalResult;
+		try {
+			result = await makeTools().applyProposal(
+				proposal.toolCallId,
+				proposal.toolName,
+				proposal.input,
+			);
+		} catch (error) {
+			console.error('Error applying a chat proposal:', error);
+			result = {
+				ok: false,
+				report: `The edit failed: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
+		if (requestController.signal.aborted) return;
+		const answered = [
+			...chatMessages,
+			answerProposal(proposal, { approved: true, ...result }),
+		];
+		// The edit stands even if the model's follow-up fails.
+		await runModel(requestController, answered, () =>
+			updateChatMessages(answered),
+		);
+	}
+
+	async function declineProposal(proposal: ProposalItem) {
+		logEdit('declined', proposal);
+		const answered = [
+			...chatMessages,
+			answerProposal(proposal, {
+				approved: false,
+				reason: DECLINED_REASON,
+			}),
+		];
+		await runModel(beginRequest(), answered, () =>
+			updateChatMessages(answered),
+		);
+	}
+
+	/** Select where a proposal would land; false if it can't be found. */
+	async function showProposalInDoc(proposal: ProposalItem): Promise<boolean> {
+		if (!isEditToolName(proposal.toolName)) return false;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		const { highlight } = await locateProposal(editorAPI, op);
+		if (!highlight) return false;
+		// Trims the quote until it's found: Word's search rejects long strings.
+		const { found } = await jumpToDocText(
+			(phrase) => editorAPI.selectPhrase(phrase),
+			highlight,
+		);
+		return found;
+	}
+
+	async function undoProposal(proposal: ProposalItem) {
+		const applied = appliedEdits[proposal.toolCallId];
+		if (!applied || applied.undone || !canEdit(editorAPI)) return;
+		try {
+			await undoEdit(editorAPI, applied.undo);
+		} catch (e) {
+			logEdit('undo_refused', proposal);
+			setUndoErrors((prev) => ({
+				...prev,
+				[proposal.toolCallId]: (e as Error).message,
+			}));
+			return;
+		}
+		// Not recorded as seen: to the model, an undo is the writer's change,
+		// and the next edit note reports it.
+		logEdit('undone', proposal);
+		setAppliedEdits((prev) => ({
+			...prev,
+			[proposal.toolCallId]: { ...applied, undone: true },
+		}));
+	}
+
+	function startNewConversation() {
+		activeRequestControllerRef.current?.abort();
+		activeRequestControllerRef.current = null;
+		updateSendingMessage(false);
+		setStreamingText(null);
+		setPendingText(null);
+		setErrorInfo(null);
+		setFailedMessage(null);
+		updateMessage('');
+		updateChatMessages([]);
+		docState.baseline = null;
+		docState.seen.clear();
+		setAppliedEdits({});
+		setUndoErrors({});
+		chatLog.conversationReset(log);
 	}
 
 	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
@@ -166,17 +554,41 @@ export default function Chat() {
 		const trimmedMessage = message.trim();
 		if (!trimmedMessage) return;
 
-		await submitMessage(trimmedMessage);
+		await submitMessage(trimmedMessage, 'input');
 	}
 
 	async function sendSuggestedMessage(text: string) {
 		updateMessage(text);
-		await submitMessage(text);
+		await submitMessage(text, 'suggested');
 	}
 
 	return (
 		<div className={classes.app}>
+			{/* The document's brief — same section as on Revise, same stored
+			    values; collapsed here so it costs one line above the transcript. */}
+			<div className={classes.briefBar}>
+				<BriefSection page="chat" />
+			</div>
+
 			<div className={classes.chatPanel}>
+				{/* In the DOM before any link is clicked — a live region added
+				    at the same moment as its text is not reliably announced. */}
+				<DocJumpStatus jump={docJump} />
+
+				{visibleMessages.length > 0 ? (
+					<div className={classes.chatToolbar}>
+						<button
+							type="button"
+							title="Start a new conversation"
+							onClick={startNewConversation}
+							className={classes.newConversationBtn}
+						>
+							<AiOutlinePlus size={12} />
+							New conversation
+						</button>
+					</div>
+				) : null}
+
 				<div
 					ref={messagesContainerRef}
 					onScroll={handleScroll}
@@ -184,8 +596,9 @@ export default function Chat() {
 				>
 					{visibleMessages.length === 0 ? (
 						<div className={classes.chatWelcome}>
-							
-							<div className={classes.chatWelcomeTitle}>What do you think about your document so far?</div>
+							<div className={classes.chatWelcomeTitle}>
+								What do you think about your document so far?
+							</div>
 
 							<div className={classes.chatSuggestions}>
 								{suggestionPrompts.map((prompt) => (
@@ -204,41 +617,101 @@ export default function Chat() {
 						</div>
 					) : (
 						visibleMessages.map((chatMessage, index) => {
+							if (chatMessage.role === 'proposal') {
+								return (
+									<ProposalCard
+										key={chatMessage.toolCallId}
+										proposal={chatMessage}
+										previews={
+											pendingPreview?.toolCallId ===
+											chatMessage.toolCallId
+												? pendingPreview.previews
+												: null
+										}
+										applied={
+											appliedEdits[chatMessage.toolCallId]
+										}
+										undoError={
+											undoErrors[chatMessage.toolCallId]
+										}
+										busy={isSendingMessage}
+										onAccept={() =>
+											void acceptProposal(chatMessage)
+										}
+										onDecline={() =>
+											void declineProposal(chatMessage)
+										}
+										onUndo={() =>
+											void undoProposal(chatMessage)
+										}
+										onShow={() =>
+											showProposalInDoc(chatMessage)
+										}
+									/>
+								);
+							}
 							const isAssistantTyping =
-								chatMessage.role === 'assistant' && chatMessage.content === '' && isSendingMessage;
+								chatMessage.role === 'assistant' &&
+								chatMessage.text === '' &&
+								isSendingMessage;
 
 							return (
 								<div
-									key={index + 3}
+									key={index}
 									className={`${classes.chatMsg} ${chatMessage.role === 'user' ? classes.user : classes.ai}`}
 								>
 									{chatMessage.role === 'assistant' ? (
-										<div className={classes.chatMeta}>Assistant</div>
+										<div className={classes.chatMeta}>
+											Assistant
+										</div>
 									) : null}
 
 									{isAssistantTyping ? (
-										<div className={classes.typingIndicator}>
+										<div
+											className={classes.typingIndicator}
+										>
 											<span />
 											<span />
 											<span />
 										</div>
 									) : (
 										<div className={classes.chatBubble}>
-											{chatMessage.role === 'assistant' ? (
-												<Remark>{chatMessage.content}</Remark>
+											{chatMessage.role ===
+											'assistant' ? (
+												<DocTextMarkdown jump={docJump}>
+													{chatMessage.text}
+												</DocTextMarkdown>
 											) : (
-												chatMessage.content
+												chatMessage.text
 											)}
 										</div>
 									)}
 
 									{chatMessage.role === 'user' ? (
-										<div className={classes.chatMeta}>You</div>
+										<div className={classes.chatMeta}>
+											You
+										</div>
 									) : null}
 								</div>
 							);
 						})
 					)}
+
+					{errorInfo ? (
+						<GenerationErrorNotice
+							info={errorInfo}
+							title="Couldn't get a reply"
+							onRetry={
+								failedMessage
+									? () =>
+											void submitMessage(
+												failedMessage.text,
+												failedMessage.source,
+											)
+									: undefined
+							}
+						/>
+					) : null}
 				</div>
 
 				{showScrollButton ? (

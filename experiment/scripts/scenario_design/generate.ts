@@ -61,9 +61,12 @@ Return ONLY the JSON object, no markdown fences.`;
   console.log(`Generating scenario "${scenarioId}" from ${basename(situationPath)}...`);
 
   const result = await generateText({
-    model: openai('gpt-4o'),
+    model: openai('gpt-5.6-terra'),
     prompt,
     maxOutputTokens: 4000,
+    providerOptions: {
+      openai: { reasoningEffort: 'low' }
+    }
   });
 
   let parsed: Record<string, unknown>;

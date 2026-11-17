@@ -1,26 +1,61 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
+import type { Auth } from '../auth.js';
 
 const app = createApp();
-const env = { ...process.env };
+
+/**
+ * Minimal Better Auth stub: getSession returns the given user (or null), and
+ * updateUser/deleteUser record their calls. Cast to Auth — we only touch the
+ * surface the app handlers use.
+ */
+function makeAuthApp(
+	user: {
+		id: string;
+		loggingConsent?: string;
+		isAnonymous?: boolean;
+		email?: string;
+	} | null,
+) {
+	const calls: { updateUser: unknown[]; deleteUser: unknown[] } = {
+		updateUser: [],
+		deleteUser: [],
+	};
+	const auth = {
+		handler: async () => new Response(null),
+		// The consent route writes through internalAdapter, not api.updateUser
+		// (see app.ts for why: the public updateUser rejects input:false fields at
+		// runtime). This mock therefore exposes internalAdapter.updateUser and
+		// deliberately omits api.updateUser, matching what the live route can and
+		// cannot call.
+		$context: Promise.resolve({
+			internalAdapter: {
+				updateUser: async (userId: string, data: unknown) => {
+					calls.updateUser.push({ userId, data });
+					return {};
+				},
+			},
+		}),
+		api: {
+			getSession: async () => (user ? { user } : null),
+			deleteUser: async (args: unknown) => {
+				calls.deleteUser.push(args);
+				return { success: true, message: 'ok' };
+			},
+		},
+	} as unknown as Auth;
+	return { app: createApp({ auth }), calls };
+}
 
 beforeEach(async () => {
-	process.env.LOG_DIR = await mkdtemp(path.join(tmpdir(), 'wt-app-'));
+	vi.stubEnv("LOG_DIR", await mkdtemp(path.join(tmpdir(), 'wt-app-')));
 });
 
 afterEach(() => {
-	process.env = { ...env };
-	vi.restoreAllMocks();
+	// unstub mocks and env are set in vitest.config.ts.
 });
 
 describe('GET /api/ping', () => {
@@ -33,37 +68,208 @@ describe('GET /api/ping', () => {
 	});
 });
 
+async function readUserLog(userId: string) {
+	const content = await readFile(
+		path.join(process.env.LOG_DIR as string, `${userId}.jsonl`),
+		'utf8',
+	);
+	return JSON.parse(content.trim());
+}
+
 describe('POST /api/log', () => {
-	it('writes the event and folds extras into extra_data', async () => {
-		const res = await app.request('/api/log', {
+	it('rejects unauthenticated requests with 401', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'saved' }),
+		});
+		expect(res.status).toBe(401);
+	});
+
+	it('keys the log by the session user id and ignores any client username', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'user-123',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				username: 'eve',
+				username: 'spoofed',
 				event: 'saved',
 				timestamp: 123,
 				detail: 'hello',
 			}),
 		});
 		expect(res.status).toBe(200);
-
-		// allow the fire-and-forget append to flush
-		await new Promise((r) => setTimeout(r, 20));
-		const content = await readFile(
-			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
-			'utf8',
-		);
-		const entry = JSON.parse(content.trim());
-		expect(entry.username).toBe('eve');
+		const entry = await readUserLog('user-123');
+		expect(entry.username).toBe('user-123');
 		expect(entry.event).toBe('saved');
 		expect(entry.extra_data.client_timestamp).toBe(123);
 		expect(entry.extra_data.detail).toBe('hello');
+		expect(entry.extra_data.username).toBeUndefined();
+	});
+
+	it("strips content above the user's consent level ('usage')", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-usage',
+			loggingConsent: 'usage',
+		});
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				event: 'ShowSuggestion',
+				generation_type: 'example_sentences',
+				prompt: { beforeCursor: 'secret doc' },
+				result: { result: 'AI text' },
+			}),
+		});
+		const entry = await readUserLog('usr-usage');
+		expect(entry.extra_data.generation_type).toBe('example_sentences');
+		expect(entry.extra_data.prompt).toBeUndefined();
+		expect(entry.extra_data.result).toBeUndefined();
+	});
+
+	it("logs nothing at level 'none' but still returns 200", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-none',
+			loggingConsent: 'none',
+		});
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'ShowSuggestion' }),
+		});
+		expect(res.status).toBe(200);
+		await expect(readUserLog('usr-none')).rejects.toThrow(); // no file written
+	});
+
+	it('promotes schema_version and page to top-level columns', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-schema',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				event: 'suggestion_requested',
+				schema_version: 1,
+				page: 'draft',
+				generationType: 'example_sentences',
+			}),
+		});
+		expect(res.status).toBe(200);
+
+		const entry = await readUserLog('usr-schema');
+		expect(entry.schema_version).toBe(1);
+		expect(entry.page).toBe('draft');
+		// Promoted columns must not linger in extra_data.
+		expect(entry.extra_data).not.toHaveProperty('schema_version');
+		expect(entry.extra_data).not.toHaveProperty('page');
+		expect(entry.extra_data.generationType).toBe('example_sentences');
+	});
+
+	it('defaults schema_version to 0 and page to null for pre-schema clients', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-legacy',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'legacy_event' }),
+		});
+		expect(res.status).toBe(200);
+
+		const entry = await readUserLog('usr-legacy');
+		expect(entry.schema_version).toBe(0);
+		expect(entry.page).toBeNull();
+	});
+});
+
+describe('POST /api/me/consent', () => {
+	it('rejects an invalid level and accepts a valid one via updateUser', async () => {
+		const { app: authApp, calls } = makeAuthApp({
+			id: 'usr-1',
+			loggingConsent: 'usage',
+		});
+
+		const bad = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'everything' }),
+		});
+		expect(bad.status).toBe(400);
+
+		const good = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'ai_output' }),
+		});
+		expect(good.status).toBe(200);
+		expect(calls.updateUser).toEqual([
+			{
+				userId: 'usr-1',
+				data: expect.objectContaining({
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: expect.any(Date),
+				}),
+			},
+		]);
+		// The reply carries the same moment that was written. JSON has no date
+		// type, so the Date arrives as its ISO string.
+		const written = (
+			calls.updateUser[0] as { data: { consentUpdatedAt: Date } }
+		).data.consentUpdatedAt;
+		expect(await good.json()).toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: written.toISOString(),
+		});
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'usage' }),
+		});
+		expect(res.status).toBe(401);
+	});
+});
+
+describe('DELETE /api/me/activity', () => {
+	it("erases the authenticated user's logged activity", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-del',
+			loggingConsent: 'document',
+		});
+		// Write a log entry, confirm it exists, then erase.
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'saved' }),
+		});
+		await readUserLog('usr-del'); // throws if missing
+
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(200);
+		await expect(readUserLog('usr-del')).rejects.toThrow();
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(401);
 	});
 });
 
 describe('POST /api/openai/chat/completions', () => {
 	it('injects the API key and forwards the body', async () => {
-		process.env.OPENAI_API_KEY = 'sk-test-123';
+		vi.stubEnv("OPENAI_API_KEY", 'sk-test-123');
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValue(new Response('data: ok\n\n', { status: 200 }));
@@ -86,9 +292,91 @@ describe('POST /api/openai/chat/completions', () => {
 	});
 });
 
+describe('POST /api/openai/realtime/session', () => {
+	/** The mint call never reaches OpenAI when the route refuses first. */
+	function stubUpstream() {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ value: 'ek_test' }), { status: 200 }),
+			);
+		vi.stubGlobal('fetch', fetchMock);
+		return fetchMock;
+	}
+
+	it('401s without a session when auth is on, without minting', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp(null);
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(401);
+		// The point of the gate: no ephemeral credential was minted against our key.
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('mints against the main key for a signed-in user', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		// Allowlisted address — the route enforces the same beta gate as the proxy.
+		const { app: authApp } = makeAuthApp({
+			id: 'user-1',
+			email: 'writer@calvin.edu',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		const [url, init] = fetchMock.mock.calls[0]!;
+		expect(url).toContain('realtime/client_secrets');
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-main',
+		);
+	});
+
+	it('403s a signed-in user outside the beta allowlist', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({
+			id: 'user-2',
+			email: 'someone@example.com',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('spends the capped demo key for an anonymous session', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		vi.stubEnv('OPENAI_DEMO_API_KEY', 'sk-demo');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({ id: 'anon-1', isAnonymous: true });
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		const [, init] = fetchMock.mock.calls[0]!;
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-demo',
+		);
+	});
+});
+
 describe('log-viewer secret gate', () => {
 	it('rejects logs_poll with a wrong secret and accepts the right one', async () => {
-		process.env.LOG_SECRET = 'super-secret';
+		vi.stubEnv("LOG_SECRET", 'super-secret');
 
 		const bad = await app.request('/api/logs_poll', {
 			method: 'POST',
@@ -107,7 +395,7 @@ describe('log-viewer secret gate', () => {
 	});
 
 	it('returns 500 when LOG_SECRET is unset', async () => {
-		delete process.env.LOG_SECRET;
+		vi.stubEnv("LOG_SECRET", undefined);
 		const res = await app.request('/api/download_logs');
 		expect(res.status).toBe(500);
 	});

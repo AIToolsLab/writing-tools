@@ -4,11 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // only SERVER_URL is needed.
 vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 
-import {
-	pollForToken,
-	requestDeviceCode,
-	fetchUserInfo,
-} from '../deviceAuth';
+import { DEFAULT_CONSENT_LEVEL } from '@/consent';
+import { pollForToken, requestDeviceCode, fetchUserInfo } from '../deviceAuth';
 
 type Json = Record<string, unknown>;
 const resp = (data: Json, ok = false) =>
@@ -34,7 +31,8 @@ describe('requestDeviceCode', () => {
 					device_code: 'dev',
 					user_code: 'ABCD-1234',
 					verification_uri: '/api/device',
-					verification_uri_complete: '/api/device?user_code=ABCD-1234',
+					verification_uri_complete:
+						'/api/device?user_code=ABCD-1234',
 					expires_in: 600,
 					interval: 5,
 				},
@@ -48,7 +46,23 @@ describe('requestDeviceCode', () => {
 
 	it('throws on a non-ok response', async () => {
 		fetchMock.mockResolvedValueOnce(resp({ error: 'invalid_client' }));
-		await expect(requestDeviceCode()).rejects.toThrow(/device\/code failed/);
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed/,
+		);
+	});
+
+	it('surfaces a readable error on a non-ok response with an unparseable body', async () => {
+		// A proxy 502 with an empty body used to crash with "Unexpected end of
+		// JSON input", masking the real failure.
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		});
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed \(502\).*backend running/,
+		);
 	});
 });
 
@@ -106,6 +120,24 @@ describe('pollForToken', () => {
 		expect(result.type).toBe('error');
 	});
 
+	it('returns a readable poll error on an unparseable body instead of crashing', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		});
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({
+			type: 'error',
+			message: expect.stringMatching(
+				/device\/token failed \(502\).*backend running/,
+			),
+		});
+	});
+
 	it('returns aborted when the signal is already aborted', async () => {
 		const controller = new AbortController();
 		controller.abort();
@@ -117,22 +149,87 @@ describe('pollForToken', () => {
 });
 
 describe('fetchUserInfo', () => {
-	it('returns the user on 200', async () => {
+	it('maps the nested get-session user to UserInfo on 200', async () => {
 		fetchMock.mockResolvedValueOnce(
-			resp({ email: 'a@calvin.edu', name: 'A' }, true),
+			resp(
+				{
+					session: { id: 'sess_1' },
+					user: {
+						id: 'user_1',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'document',
+						isAllowed: true,
+						isAnonymous: true,
+						consentUpdatedAt: '2026-07-24T00:00:00.000Z',
+					},
+				},
+				true,
+			),
 		);
 		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'user_1',
 			email: 'a@calvin.edu',
 			name: 'A',
+			loggingConsent: 'document',
+			isAllowed: true,
+			isAnonymous: true,
+			consentUpdatedAt: '2026-07-24T00:00:00.000Z',
+		});
+		// hits the framework endpoint on the token-only path, no cookies
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/auth/get-session',
+			expect.objectContaining({
+				credentials: 'omit',
+				headers: { Authorization: 'Bearer tok' },
+			}),
+		);
+	});
+
+	it('defaults an invalid loggingConsent to DEFAULT_CONSENT_LEVEL', async () => {
+		fetchMock.mockResolvedValueOnce(
+			resp(
+				{
+					user: {
+						id: 'u',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'bogus',
+					},
+				},
+				true,
+			),
+		);
+		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'u',
+			email: 'a@calvin.edu',
+			name: 'A',
+			loggingConsent: DEFAULT_CONSENT_LEVEL, // 'usage'
+			// server omitted isAllowed → client coerces to false, never derives it
+			isAllowed: false,
+			// Same fail-closed mapping for the anonymous marker.
+			isAnonymous: false,
+			// Omitted (or non-string) consentUpdatedAt normalizes to null = "never set".
+			consentUpdatedAt: null,
 		});
 	});
 
-	it('throws on 401', async () => {
+	it('throws on 200 + null body (expired/invalid Bearer session)', async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve(null),
+		});
+		await expect(fetchUserInfo('tok')).rejects.toThrow(/no active session/);
+	});
+
+	it('throws on a non-2xx transport error', async () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
-			status: 401,
+			status: 500,
 			json: () => Promise.resolve({}),
-		} as Response);
-		await expect(fetchUserInfo('tok')).rejects.toThrow(/protected failed/);
+		});
+		await expect(fetchUserInfo('tok')).rejects.toThrow(
+			/get-session failed/,
+		);
 	});
 });
