@@ -4,13 +4,8 @@
  *
  * Ported from AIToolsLab/writing-prototypes `docs/engine-tokens.js`. The
  * server conditions on the draft's characters, so there's no token healing
- * here; this file turns scores into highlight ranges and groups continuations
- * into the units shown (words). Differences from the original:
- *
- * - Predictions keep up to {@link NUM_BRANCHES} units, more than are shown, so
- *   the suggestion cache has survivors to fall back on as the writer types.
- * - There's no local narrowing of the last answer while the next is on its
- *   way; the suggestion cache does that job.
+ * here; this file turns scores into highlight ranges, groups continuations
+ * into the units shown (words, see `words.ts`), and picks out corrections.
  */
 import type {
 	ChatMessage,
@@ -18,6 +13,12 @@ import type {
 	EngineClient,
 	ScoredToken,
 } from '@/api/writingEngine';
+import {
+	firstUnits,
+	NO_SPACE_SCRIPT,
+	spellingDistance,
+	wordUnitPattern,
+} from './words';
 
 export interface HighlightRange {
 	start: number;
@@ -86,66 +87,27 @@ export function rangesFromScores(
 
 // ── Predictions ─────────────────────────────────────────────────────────────
 
-/** Units kept per request: more than are shown, for the suggestion cache. */
-export const NUM_BRANCHES = 8;
+export const NUM_SUGGESTIONS = 5;
 
-export interface Branch {
-	/** Text to append to the draft the request was made for. */
+/** Corrections shown at most, ahead of the completions. */
+const MAX_CORRECTIONS = 2;
+
+export interface Suggestion {
+	/** Text to put at the end of the draft (after removing `correction.replace`). */
 	text: string;
 	/**
-	 * P(the reply continues with this unit | the draft), summed over the
+	 * P(the reply continues with this | the draft), summed over the
 	 * continuations that start with it. A lower bound: the server drops
-	 * branches too unlikely to follow.
+	 * branches too unlikely to follow. Absent for corrections.
 	 */
-	prob: number;
-}
-
-// Scripts written without spaces between words. For these, words come from
-// the browser's segmenter, and the server is asked for a few characters
-// rather than "up to the next space".
-const NO_SPACE_SCRIPT =
-	/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
-const segmenter =
-	typeof Intl !== 'undefined' && Intl.Segmenter
-		? new Intl.Segmenter(undefined, { granularity: 'word' })
-		: null;
-
-/**
- * Up to {@link NUM_BRANCHES} continuations of the last message in `messages`,
- * each cut at `words` words, most probable first.
- */
-export async function tokenSuggestions(
-	client: EngineClient,
-	{ messages, words }: { messages: ChatMessage[]; words: number },
-	signal?: AbortSignal,
-): Promise<{ branches: Branch[]; warning: string; serverMs: number }> {
-	const last = messages[messages.length - 1];
-	if (!last) throw new Error('No message to continue');
-	const { role, content: draft } = last;
-	const prompt = await client.turnPrefix(messages.slice(0, -1), role);
-	const recent = messages
-		.map((m) => m.content)
-		.join('\n')
-		.slice(-200);
-	const res = await client.continuations(
-		{
-			prompt,
-			text: draft,
-			units: NUM_BRANCHES,
-			stop: `^\\s*\\S+(?:[ \\t]+\\S+){${words - 1}}(?=\\s)`,
-			...(NO_SPACE_SCRIPT.test(recent)
-				? { max_chars: 4 * words + 2 }
-				: {}),
-		},
-		signal,
-	);
-	return {
-		branches: unitBranches(res.continuations, words),
-		warning:
-			res.unresolved > 0.05
-				? "Some ways of reading the last word weren't explored, so probabilities may be a little high."
-				: '',
-		serverMs: Math.round(res.stats.total_ms),
+	prob?: number;
+	correction?: {
+		/** Characters at the end of the draft that `text` replaces. */
+		replace: number;
+		/** The word it makes. */
+		word: string;
+		/** How many times as likely as everything that keeps what was typed. */
+		ratio: number;
 	};
 }
 
@@ -155,16 +117,20 @@ export async function tokenSuggestions(
  * ones (the server stopped partway) only fill slots that would otherwise be
  * empty.
  */
-export function unitBranches(
+export function unitSuggestions(
 	continuations: Continuation[],
 	words: number,
-): Branch[] {
-	const units = new Map<string, Branch & { complete: boolean }>();
-	for (const { text, prob, done } of continuations) {
-		const unit = firstUnits(text, words);
+): Suggestion[] {
+	const units = new Map<
+		string,
+		{ text: string; prob: number; complete: boolean }
+	>();
+	for (const { text, prob, done, end } of continuations) {
+		// Ending the turn ends the word too.
+		const unit = firstUnits(end ? `${text} ` : text, words);
 		// Ending the message isn't a suggestion, and a unit cut mid-character
 		// would show a replacement glyph.
-		if (!unit.text.trim() || unit.text.includes('\uFFFD')) continue;
+		if (!unit.text.trim() || unit.text.includes('�')) continue;
 		const u = units.get(unit.text) ?? {
 			text: unit.text,
 			prob: 0,
@@ -179,57 +145,236 @@ export function unitBranches(
 			(a, b) =>
 				Number(b.complete) - Number(a.complete) || b.prob - a.prob,
 		)
-		.slice(0, NUM_BRANCHES)
+		.slice(0, NUM_SUGGESTIONS)
 		.map(({ text, prob }) => ({ text, prob }));
 }
 
 /**
- * The first n words of a continuation, and whether there's enough text after
- * them to know they're whole.
+ * The continuations still possible after typing `extra` more characters.
+ * Their new probabilities are lower bounds: continuations we never saw might
+ * match `extra` too.
  */
-export function firstUnits(
-	text: string,
-	n: number,
-): { text: string; complete: boolean } {
-	if (!segmenter || !NO_SPACE_SCRIPT.test(text)) {
-		const whole = completeWords(text, n);
-		return whole === null
-			? { text: firstWords(text, n), complete: false }
-			: { text: whole, complete: true };
-	}
-	// A unit is a word plus any punctuation after it; it ends at whitespace or
-	// where the next word starts.
-	const segments = [...segmenter.segment(text)];
-	let count = 0;
-	let end = 0;
-	let i = 0;
-	for (; i < segments.length; i++) {
-		const { segment, isWordLike } = segments[i];
-		if (count === n && (isWordLike || /\s/.test(segment))) break;
-		if (isWordLike) count++;
-		end = segments[i].index + segment.length;
-	}
-	// The last segment may be a word that's still growing, so it doesn't
-	// confirm that the unit ended.
-	const complete =
-		count === n &&
-		(i < segments.length - 1 ||
-			(i < segments.length && /\s/.test(segments[i].segment)));
-	return { text: text.slice(0, end), complete };
+export function narrow(
+	continuations: Continuation[],
+	extra: string,
+): Continuation[] {
+	const kept = continuations.filter((c) => !c.replace);
+	const matching = kept.filter(
+		(c) => c.text.length > extra.length && c.text.startsWith(extra),
+	);
+	const seen = kept.reduce((sum, c) => sum + c.prob, 0);
+	const total =
+		matching.reduce((sum, c) => sum + c.prob, 0) + Math.max(0, 1 - seen);
+	return matching.map((c) => ({
+		...c,
+		text: c.text.slice(extra.length),
+		prob: c.prob / total,
+	}));
 }
 
-/** The first n words of text, if text already has them followed by space. */
-export function completeWords(text: string, n: number): string | null {
-	const match = text.match(
-		new RegExp(`^\\s*\\S+(?:[ \\t]+\\S+){${n - 1}}(?=\\s)`),
+const utf8 = new TextEncoder();
+const fromUtf8 = new TextDecoder();
+
+/**
+ * Suggestions that replace the end of the draft (the server's corrections),
+ * when the model finds one at least as likely as everything that keeps what
+ * was typed, and it's spelled close to the word being typed: at most 1 edit
+ * for short words, 2 otherwise, ignoring case (so iphone → iPhone is free),
+ * and comparing a word still being typed with the start of the correction.
+ * Only for words of 3 or more characters, keeping the first letter, and
+ * within 100× of the best correction.
+ */
+export function correctionSuggestions(
+	draft: string,
+	continuations: Continuation[],
+	words: number,
+): Suggestion[] {
+	const typedWord = /\S*$/.exec(draft.trimEnd())?.[0] ?? '';
+	if (typedWord.length < 3) return [];
+	const space = /\s*$/.exec(draft)?.[0] ?? '';
+	const bytes = utf8.encode(draft);
+	const found = new Map<
+		string,
+		Suggestion & { correction: NonNullable<Suggestion['correction']> }
+	>();
+	for (const { text, prob, end, replace } of continuations) {
+		if (!replace || prob < 1) continue;
+		const unit = firstUnits(end ? `${text} ` : text, words);
+		if (!unit.complete || !unit.text.trim()) continue;
+		// The server counts bytes.
+		const kept = fromUtf8.decode(bytes.slice(0, bytes.length - replace));
+		const removed = draft.slice(kept.length);
+		const word = /\S*$/.exec(kept + unit.text)?.[0] ?? '';
+		const atWordEnd = /\s$/.test(removed) || words > 1;
+		const close =
+			spellingDistance(
+				typedWord.toLowerCase(),
+				word.toLowerCase(),
+				!atWordEnd,
+			) <= (typedWord.length <= 4 ? 1 : 2);
+		if (
+			!close ||
+			word === typedWord ||
+			word[0]?.toLowerCase() !== typedWord[0].toLowerCase()
+		) {
+			continue;
+		}
+		// An odd tokenization that doubles a space.
+		if (/\s$/.test(kept) && /^\s/.test(unit.text)) continue;
+		// Keep the space the writer typed after the word.
+		const insert =
+			unit.text +
+			(/\s$/.test(removed) && !/\s$/.test(unit.text) ? space : '');
+		const key = kept + insert; // different paths to the same result add up
+		const c = found.get(key) ?? {
+			text: insert,
+			correction: { replace: removed.length, word, ratio: 0 },
+		};
+		c.correction.ratio += prob;
+		found.set(key, c);
+	}
+	const sorted = [...found.values()].sort(
+		(a, b) => b.correction.ratio - a.correction.ratio,
 	);
-	return match ? match[0] : null;
+	// A second misspelling ("learing" for "lerning") can beat the typed word
+	// too; keep near-best ones only.
+	return sorted
+		.filter((c) => c.correction.ratio >= sorted[0].correction.ratio / 100)
+		.slice(0, MAX_CORRECTIONS);
 }
 
-/** Leading whitespace plus the first n whitespace-delimited words. */
-export function firstWords(text: string, n: number): string {
-	const match = text.match(
-		new RegExp(`^\\s*\\S+(?:[ \\t]+\\S+){0,${n - 1}}`),
-	);
-	return match ? match[0] : text;
+interface Answer {
+	context: string;
+	draft: string;
+	continuations: Continuation[];
+}
+
+/**
+ * Next-word suggestions for one view: completions, plus corrections of the
+ * word being typed. Keeps the last answer, to narrow it locally while the next
+ * request is out, and the last corrections, because the server only
+ * reconsiders the word being typed: once a space follows it, the corrections
+ * it had for the word carry over (with the space).
+ */
+export class Predictor {
+	private last: Answer | null = null;
+	private lastCorrections: {
+		context: string;
+		draft: string;
+		items: Suggestion[];
+	} | null = null;
+
+	constructor(private readonly client: EngineClient) {}
+
+	async suggest(
+		{
+			messages,
+			words,
+			onUpdate,
+		}: {
+			messages: ChatMessage[];
+			words: number;
+			onUpdate?: (suggestions: Suggestion[]) => void;
+		},
+		signal?: AbortSignal,
+	): Promise<{
+		suggestions: Suggestion[];
+		warning: string;
+		serverMs: number;
+	}> {
+		const last = messages[messages.length - 1];
+		if (!last) throw new Error('No message to continue');
+		const { role, content: draft } = last;
+		const prompt = await this.client.turnPrefix(
+			messages.slice(0, -1),
+			role,
+		);
+		const context = JSON.stringify([prompt, words]);
+
+		// Until the server answers, show what the last answer implies for the
+		// characters typed since.
+		const prev = this.last;
+		if (
+			prev &&
+			prev.context === context &&
+			draft.length > prev.draft.length &&
+			draft.startsWith(prev.draft)
+		) {
+			const local = unitSuggestions(
+				narrow(prev.continuations, draft.slice(prev.draft.length)),
+				words,
+			);
+			if (local.length) onUpdate?.(local);
+		}
+
+		const recent = messages
+			.map((m) => m.content)
+			.join('\n')
+			.slice(-200);
+		const res = await this.client.continuations(
+			{
+				prompt,
+				text: draft,
+				units: NUM_SUGGESTIONS,
+				corrections: 1,
+				time_ms: 150,
+				stop: wordUnitPattern(words),
+				...(NO_SPACE_SCRIPT.test(recent)
+					? { max_chars: 4 * words + 2 }
+					: {}),
+			},
+			signal,
+		);
+		this.last = { context, draft, continuations: res.continuations };
+
+		let corrections = correctionSuggestions(
+			draft,
+			res.continuations,
+			words,
+		);
+		if (corrections.length) {
+			this.lastCorrections = { context, draft, items: corrections };
+		} else {
+			corrections = this.carriedCorrections(context, draft);
+			if (!/\s$/.test(draft) && !corrections.length) {
+				this.lastCorrections = { context, draft, items: [] };
+			}
+		}
+		const completions = unitSuggestions(
+			res.continuations.filter((c) => !c.replace),
+			words,
+		);
+		return {
+			suggestions: [...corrections, ...completions].slice(
+				0,
+				NUM_SUGGESTIONS,
+			),
+			warning:
+				res.unresolved > 0.05
+					? "Some ways of reading the last word weren't explored, so probabilities may be a little high."
+					: '',
+			serverMs: Math.round(res.stats.total_ms),
+		};
+	}
+
+	/** The last word's corrections, once only whitespace has been typed after it. */
+	private carriedCorrections(context: string, draft: string): Suggestion[] {
+		const prev = this.lastCorrections;
+		if (!prev || prev.context !== context) return [];
+		const space = draft.slice(prev.draft.length);
+		if (!draft.startsWith(prev.draft) || !/^\s+$/.test(space)) return [];
+		return prev.items.flatMap((c) =>
+			c.correction
+				? [
+						{
+							text: /\s$/.test(c.text) ? c.text : c.text + space,
+							correction: {
+								...c.correction,
+								replace: c.correction.replace + space.length,
+							},
+						},
+					]
+				: [],
+		);
+	}
 }

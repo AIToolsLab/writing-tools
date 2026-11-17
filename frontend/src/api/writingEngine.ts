@@ -62,12 +62,21 @@ export interface ScoreResponse {
 export interface Continuation {
 	/** Text to append to the draft. */
 	text: string;
-	/** P(the reply continues this way | the characters typed). */
+	/**
+	 * P(the reply continues this way | the characters typed). For a
+	 * correction, how many times as likely it is as all the paths that keep to
+	 * the typed text.
+	 */
 	prob: number;
 	/** The model would end the message after this text. */
 	end: boolean;
 	/** The continuation reached the stop condition (vs. was cut short). */
 	done: boolean;
+	/**
+	 * A correction: the number of *bytes* (UTF-8) at the end of the typed text
+	 * that `text` replaces. Only the last word is reconsidered.
+	 */
+	replace?: number;
 }
 
 export interface ContinuationsResponse {
@@ -170,7 +179,11 @@ export class EngineClient {
 			text: string;
 			stop?: string;
 			units?: number;
+			/** Also return corrections at least this many times as likely. */
+			corrections?: number;
 			max_chars?: number;
+			/** Cap on the search, in ms. */
+			time_ms?: number;
 		},
 		signal?: AbortSignal,
 	): Promise<ContinuationsResponse> {

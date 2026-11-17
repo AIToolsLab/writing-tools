@@ -383,3 +383,20 @@
 	color: #888;
 	font-size: 0.7rem;
 }
+
+/* A completion of the word being typed shows the whole word, typed part gray. */
+.typedPart {
+	color: #aaa;
+}
+
+/* A correction replaces the end of the draft. */
+.correction .suggestionText {
+	text-decoration: underline wavy #c77d00 1px;
+	text-underline-offset: 2px;
+	/* Room for the underline, which overflow: hidden would otherwise clip. */
+	padding-block: 4px;
+}
+
+.correction small {
+	color: #c77d00;
+}

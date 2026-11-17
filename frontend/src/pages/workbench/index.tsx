@@ -7,8 +7,8 @@
  *   written something different. They point; they never replace.
  * - **Predict** has the writer write the rewrite themselves, with next-word
  *   predictions. The AI's words can't get ahead of the writer's: a suggestion
- *   is a few words past what they've typed, and only appears when they pause.
- *   Suggestions hold still while typed into (see `suggestionCache.ts`).
+ *   is a few words past what they've typed. A suggestion can also correct the
+ *   word being typed (a likely spelling), which the writer sees marked as such.
  *
  * Nothing here writes to the document. Requests go straight to the writing
  * engine (`@/api/writingEngine`), not through the backend.
@@ -33,7 +33,9 @@ import { useLog } from '@/hooks/useLog';
 import {
 	type HighlightRange,
 	tokenHighlights,
-	tokenSuggestions,
+	NUM_SUGGESTIONS,
+	Predictor,
+	type Suggestion,
 } from './engine';
 import {
 	DEFAULT_INSTRUCTION,
@@ -44,14 +46,16 @@ import {
 	REWRITE_ADJECTIVES,
 	taskMessages,
 } from './passage';
-import { type Suggestion, SuggestionCache } from './suggestionCache';
 import classes from './styles.module.css';
 
 /** Shared across mounts so rendered chat prefixes stay cached. */
 const client = new EngineClient(fetchPost(ENGINE_URL));
 
-const NUM_SHOWN = 5;
-const DEBOUNCE_MS = 150;
+/**
+ * Highlights wait for a pause in typing: unlike predictions, the server doesn't
+ * drop a superseded scoring request, so one per keystroke would queue up.
+ */
+const HIGHLIGHT_DELAY_MS = 150;
 const ALT_KEY =
 	typeof navigator !== 'undefined' &&
 	/Mac|iPhone|iPad/.test(navigator.userAgent)
@@ -341,7 +345,7 @@ function HighlightsView({
 						});
 					}
 				})(),
-			DEBOUNCE_MS,
+			HIGHLIGHT_DELAY_MS,
 		);
 		return () => {
 			clearTimeout(timer);
@@ -532,73 +536,61 @@ function PredictView({
 	const [status, setStatus] = useState('');
 	const [warning, setWarning] = useState('');
 	const [error, setError] = useState<string | null>(null);
-	const cacheRef = useRef(new SuggestionCache());
+	const predictorRef = useRef(new Predictor(client));
 	const sourceRef = useAutogrow(source);
 	const draftRef = useAutogrow(draft);
 	const contextKey = JSON.stringify([messages, words]);
 
+	// No debounce: a request per keystroke. The server drops a request from
+	// this tab once a newer one arrives (409, treated as an abort), and the
+	// predictor narrows the last answer locally until the new one is back.
 	useEffect(() => {
 		if (!model) return;
-		const cache = cacheRef.current;
-		cache.setContext(contextKey);
-		const fromCache = cache.lookup(draft, NUM_SHOWN);
-		setShown({ draft, items: fromCache });
-		if (fromCache.length >= NUM_SHOWN || cache.has(draft)) {
-			setStatus(fromCache.length ? 'From earlier predictions' : '');
-			return;
-		}
 		const controller = new AbortController();
-		const timer = setTimeout(
-			() =>
-				void (async () => {
-					setStatus('Predicting…');
-					const t0 = performance.now();
-					try {
-						const res = await tokenSuggestions(
-							client,
-							{
-								messages: [
-									...messages,
-									{ role: 'assistant', content: draft },
-								],
-								words,
-							},
-							controller.signal,
-						);
-						const ms = Math.round(performance.now() - t0);
-						cache.add(draft, res.branches);
-						setShown({
-							draft,
-							items: cache.lookup(draft, NUM_SHOWN),
-						});
-						setWarning(res.warning);
-						setError(null);
-						setStatus(
-							`Predicted in ${ms} ms (server ${res.serverMs} ms)`,
-						);
-						workbenchLog.predictionsFetched(log, {
-							model,
-							ms,
-							serverMs: res.serverMs,
-							branches: res.branches.length,
-							words,
-						});
-					} catch (err) {
-						if (isAbort(err)) return;
-						setStatus('');
-						setError(describeError(err));
-						workbenchLog.requestFailed(log, {
-							kind: 'predictions',
-							error: describeError(err),
-						});
-					}
-				})(),
-			DEBOUNCE_MS,
-		);
-		return () => {
-			clearTimeout(timer);
-			controller.abort();
-		};
+		void (async () => {
+			setStatus('Predicting…');
+			const t0 = performance.now();
+			try {
+				const res = await predictorRef.current.suggest(
+					{
+						messages: [
+							...messages,
+							{ role: 'assistant', content: draft },
+						],
+						words,
+						onUpdate: (items) => {
+							if (!controller.signal.aborted) {
+								setShown({ draft, items });
+							}
+						},
+					},
+					controller.signal,
+				);
+				const ms = Math.round(performance.now() - t0);
+				setShown({ draft, items: res.suggestions });
+				setWarning(res.warning);
+				setError(null);
+				setStatus(`Predicted in ${ms} ms (server ${res.serverMs} ms)`);
+				workbenchLog.predictionsFetched(log, {
+					model,
+					ms,
+					serverMs: res.serverMs,
+					suggestions: res.suggestions.length,
+					corrections: res.suggestions.filter((s) => s.correction)
+						.length,
+					words,
+				});
+			} catch (err) {
+				if (isAbort(err)) return;
+				setStatus('');
+				setError(describeError(err));
+				workbenchLog.requestFailed(log, {
+					kind: 'predictions',
+					error: describeError(err),
+				});
+			}
+		})();
+		return () => controller.abort();
 		// `contextKey` stands for `messages` and `words`.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [contextKey, draft, model, log]);
@@ -608,13 +600,15 @@ function PredictView({
 		(i: number) => {
 			const item = shown.items[i];
 			if (!item || shown.draft !== draft) return;
+			const replace = item.correction?.replace ?? 0;
 			workbenchLog.suggestionAccepted(log, {
 				slot: i,
 				acceptedChars: item.text.length,
+				replacedChars: replace,
 				draftChars: draft.length,
-				fromCache: item.prob === undefined,
+				correction: item.correction !== undefined,
 			});
-			const next = draft + item.text;
+			const next = draft.slice(0, draft.length - replace) + item.text;
 			setDraft(next);
 			const ta = draftRef.current;
 			if (ta) {
@@ -664,34 +658,17 @@ function PredictView({
 				onChange={(e) => setDraft(e.target.value)}
 			/>
 			<div className={classes.suggestions}>
-				{Array.from({ length: NUM_SHOWN }, (_, i) => {
-					const item = shown.items[i];
-					return (
-						<button
-							// Index keys: fixed slots, so they don't jump around
-							key={i}
-							type="button"
-							disabled={!item || !fresh}
-							title={item?.text}
-							onClick={() => accept(i)}
-						>
-							<kbd>
-								{ALT_KEY}
-								{i + 1}
-							</kbd>
-							<span className={classes.suggestionText}>
-								{item ? showToken(item.text) : ''}
-							</span>
-							{item?.prob !== undefined && (
-								<small>
-									{item.prob < 0.005
-										? '<1%'
-										: `${Math.round(item.prob * 100)}%`}
-								</small>
-							)}
-						</button>
-					);
-				})}
+				{Array.from({ length: NUM_SUGGESTIONS }, (_, i) => (
+					<SuggestionButton
+						// Index keys: fixed slots, so they don't jump around
+						key={i}
+						slot={i}
+						item={shown.items[i]}
+						draft={shown.draft}
+						disabled={!fresh}
+						onClick={() => accept(i)}
+					/>
+				))}
 			</div>
 			<div className={classes.controls}>
 				<label>
@@ -716,5 +693,63 @@ function PredictView({
 			<p className={classes.status}>{status}</p>
 			{warning ? <p className={classes.warning}>{warning}</p> : null}
 		</section>
+	);
+}
+
+function SuggestionButton({
+	slot,
+	item,
+	draft,
+	disabled,
+	onClick,
+}: {
+	slot: number;
+	item: Suggestion | undefined;
+	draft: string;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	const c = item?.correction;
+	// A completion of the word being typed shows the whole word, the typed
+	// part grayed out. A correction shows the word it makes.
+	const typed =
+		item && !c && /^\S/.test(item.text)
+			? (/\S*$/.exec(draft)?.[0] ?? '')
+			: '';
+	const note = c
+		? c.ratio < 10
+			? `${c.ratio.toFixed(1)}×`
+			: c.ratio < 100
+				? `${Math.round(c.ratio)}×`
+				: '100×+'
+		: item?.prob !== undefined
+			? item.prob < 0.005
+				? '<1%'
+				: `${Math.round(item.prob * 100)}%`
+			: null;
+	return (
+		<button
+			type="button"
+			className={c ? classes.correction : undefined}
+			disabled={!item || disabled}
+			title={
+				c
+					? `Replace "${/\S*$/.exec(draft.trimEnd())?.[0] ?? ''}" with "${c.word}" (${note} as likely as what you typed)`
+					: item?.text
+			}
+			onClick={onClick}
+		>
+			<kbd>
+				{ALT_KEY}
+				{slot + 1}
+			</kbd>
+			<span className={classes.suggestionText}>
+				{typed ? (
+					<span className={classes.typedPart}>{typed}</span>
+				) : null}
+				{item ? showToken(c ? c.word : item.text) : ''}
+			</span>
+			{note !== null && <small>{note}</small>}
+		</button>
 	);
 }

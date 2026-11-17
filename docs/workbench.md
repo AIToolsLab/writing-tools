@@ -16,8 +16,8 @@ Code: `frontend/src/pages/workbench/` and `frontend/src/api/writingEngine.ts`.
 - **Predict**: the writer writes their own version and gets next-word predictions
   (1–3 words). The value judgment is that the AI's words can't get ahead of the
   writer's input. Blind acceptance is still possible.
-  `suggestion_accepted` logs `acceptedChars` and `draftChars`, so the share of a
-  rewrite that came from accepted text can be read off the logs. That should help
+  `suggestion_accepted` logs `acceptedChars`, `replacedChars` and `draftChars`,
+  so the share of a rewrite that came from accepted text can be read off the logs. That should help
   whatever "information threshold" design follows.
 
 Nothing here writes to the document.
@@ -27,7 +27,7 @@ Nothing here writes to the document.
 The prompt contains the brief (if set), the paragraph before the passage, the
 instruction and the passage, in that order. The stable parts go first so the
 engine's cache can reuse them: anything after an edit point is recomputed. It does not contain the whole document: scoring
-returns a distribution for every prompt token, and requests run on every pause
+returns a distribution for every prompt token, and requests run on every keystroke or pause
 in typing. A targeted summary of the rest of the document (concepts, terms,
 names), written by the big model, is a possible next step.
 
@@ -68,30 +68,42 @@ The engine and the old vLLM server can't share the GPU, so only one runs at a
 time. When the engine is down, the page shows "Couldn't reach the model
 server".
 
-## Stable predictions (`suggestionCache.ts`)
+## Predictions
 
-The property: **typing any prefix of a prediction doesn't change that
-prediction's suffix**. A keystroke only removes suggestions that no longer
-match. With vLLM, re-querying couldn't give that, because the model saw a
-different token boundary each time. The engine conditions on characters, so in
-principle survivors keep their relative odds on a fresh query, but a fresh
-answer can still rank a new word above them or miss one the search didn't
-reach. The cache makes the property hold outright, and saves requests. So:
+Suggestions are **words, never punctuation**, as on phone keyboards
+(`words.ts`). A unit of n words ends early at punctuation, and a continuation
+that starts with punctuation offers nothing. Punctuation between letters is
+part of a word ("U.S.", "e.g.", "1,000", "and/or"). `*`, `<`, `>` and `` ` ``
+end words, so Markdown and HTML fragments aren't offered. The same pattern is
+the server's `stop` regex, so the server's count of distinct units (`units`)
+matches what the page groups and shows.
 
-- Each request asks for up to 8 distinct units (`NUM_BRANCHES`), more than
-  the 5 shown, so there are survivors to fall back on.
-- Each request's branches are stored as a tree rooted at its draft. A later
-  draft is answered from the stored trees first. Survivors keep their order:
-  older trees first. A new request is made only when fewer than 5 survive, and
-  its branches fill the slots below the survivors.
-- Probabilities are shown only for a request made for exactly the current
-  draft. For a survivor, the conditional probability of the remaining suffix
-  isn't recoverable from what's stored.
-- Changing the instruction, source passage, brief or words-per-suggestion
-  clears the cache.
+- **One request per keystroke**, with no debounce. The server drops a request
+  once a newer one arrives from the same tab (409, treated as an abort). While
+  a request is out, the page narrows the last answer to what's still possible
+  after the characters typed since (`narrow`), so slots update right away.
+  Highlights still wait 150 ms for a pause, because the server doesn't drop
+  superseded scoring requests.
+- **5 units per request** (`units: 5`), the number shown. Asking for more used
+  to give the suggestion cache survivors; with the cache gone, extra units only
+  cost search time. The search is capped at 150 ms (`time_ms`).
+- A completion of the word being typed shows the **whole word**, with the typed
+  part grayed ("pop" + "ular").
+- **Corrections** (`corrections: 1`): the engine also follows paths that leave
+  the typed text within its last word, if they're more likely than everything
+  that keeps to it. The page shows up to 2, first, with a wavy underline and
+  how many times as likely they are, but only if: the typed word has 3 or
+  more characters; the correction keeps its first letter; it's within 2 edits
+  (1 for words of 4 characters or fewer; case is free, so iphone → iPhone); and
+  it's within 100× of the best correction. The server only reconsiders the
+  word being typed, so once a space follows it, the page keeps the corrections
+  it had (`Predictor`). The thresholds are the prototype's.
 
-This would be the "API we wish we had", done client-side. A backend layer for it
-isn't needed yet.
+The suggestion cache that held predictions still while they were typed into was
+removed. Add it back (git history: `suggestionCache.ts`) if suggestions shifting
+under the writer turns out to be a problem. In principle the engine keeps the
+survivors' relative odds, because it conditions on characters. A fresh answer
+can still rank a new word above them.
 
 ## Character offsets
 
@@ -108,12 +120,16 @@ as wildly unlikely.
 
 - Mid-word, the slots below a near-certain completion fill with near-misses
   at <1% ("ularity", "ulaire", "olare" beside 100% "ular" after "a pop"),
-  because the request asks for 8 distinct units. A probability floor on what's
+  because the request asks for 5 distinct units. A probability floor on what's
   shown would hide them.
-- Shown probabilities are lower bounds (branches the server didn't follow are
-  missing), and survivors from an earlier request show none. Their
-  conditional probability could now be estimated from what's stored (the
-  prototype's `narrow`), but isn't yet.
+- Shown probabilities are lower bounds: branches the server didn't follow are
+  missing.
+- A correction mid-word often isn't finished within the 150 ms cap (for
+  "populr", "ar" is found but not confirmed as the word's end), so it's
+  dropped. "Many peple" → "people" works. Corrections the model wants to
+  make into a different word ("plce" → "spot") are dropped as not a respelling.
+- Slots are narrow in the sidebar, so whole-word completions and corrections
+  truncate sooner ("peo…").
 - A highlight's alternative can be `�` when the model's top choice is the
   first byte of a multi-byte character.
 - Sentence splitting is a regex (`. ! ?` plus whitespace), so "e.g. this" splits
