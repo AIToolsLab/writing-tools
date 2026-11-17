@@ -2,8 +2,11 @@ import { createMiddleware } from 'hono/factory';
 import { PostHog } from 'posthog-node';
 
 const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim() || "placeholder-token";
+// Defaults to PostHog US directly, NOT the e.thoughtful-ai.com reverse proxy: the
+// server has no ad-blocker to evade (that's only worth it for the browser SDK), so
+// the proxy added a hop that could — and did — fail on its own.
 // Strip any trailing slash so building management-API URLs (deletePosthogPerson)
-// can't produce a double slash — the shipped POSTHOG_HOST default ends in '/', and
+// can't produce a double slash — an explicitly-set POSTHOG_HOST may end in '/', and
 // many reverse proxies 404 on `//api/...`.
 const host =
 	((process.env.POSTHOG_HOST ?? '').trim() || 'https://us.i.posthog.com').replace(
@@ -13,15 +16,40 @@ const host =
 
 const shouldDisablePosthog = token === "placeholder-token" || process.env.DISABLE_POSTHOG === '1';
 
-const posthog = new PostHog(token, { host, disabled: shouldDisablePosthog });
+const posthog = new PostHog(token, {
+	host,
+	disabled: shouldDisablePosthog,
+	// Telemetry must never be able to hold a request (or the whole process) open.
+	// posthog-node's defaults are 10s per attempt x 4 attempts with 3s between them
+	// — ~49s of hanging per flush when the ingestion host is down. Ingestion is
+	// fire-and-forget analytics, so cap it at a few seconds and let the batch drop.
+	requestTimeout: 3000,
+	fetchRetryCount: 1,
+	fetchRetryDelay: 1000,
+});
 
 export const posthogMiddleware = createMiddleware(async (c, next) => {
-	posthog.capture({
-		distinctId: 'server',
-		event: `${c.req.method} ${c.req.path}`,
-	});
+	// Health probes are not product analytics: they'd add a queue entry (and a
+	// distinct event name) every few seconds forever.
+	if (c.req.path !== '/api/ping') {
+		try {
+			posthog.capture({
+				distinctId: 'server',
+				event: `${c.req.method} ${c.req.path}`,
+			});
+		} catch {
+			// Never let telemetry break the request path.
+		}
+	}
 	await next();
-	await posthog.flush();
+	// Deliberately NOT `await posthog.flush()`. That made every request wait on —
+	// and 500 on — a PostHog ingestion failure: flush() rejects on any non-2xx,
+	// the rejection propagated out of this middleware into app.onError, and
+	// because flush() serializes behind the previous flush the latency compounded
+	// across concurrent requests. A transient 526 from the analytics host thereby
+	// took the whole backend down, health probe included. posthog-node already
+	// flushes in the background (batches of 20, or every 10s) and swallows its own
+	// errors there; shutdownPosthog() drains the tail on SIGTERM.
 });
 
 export async function captureException(
@@ -31,7 +59,9 @@ export async function captureException(
 	try {
 		const err = error instanceof Error ? error : new Error(String(error));
 		posthog.captureException(err, undefined, properties);
-		await posthog.flush();
+		// No flush() here either — see posthogMiddleware. The background flush
+		// timer sends this within ~10s without putting the ingestion host on the
+		// critical path of an error response.
 	} catch {
 		// Never let error tracking break the request path.
 	}

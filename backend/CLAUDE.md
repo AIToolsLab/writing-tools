@@ -53,8 +53,17 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   static root doesn't exist. Cache rules: `no-store` for `.html`/`manifest.xml`
   (they reference content-hashed bundles by name), `immutable` for hashed assets.
 - **Telemetry** (`src/posthog.ts`): optional PostHog error capture; a no-op when
-  `POSTHOG_PROJECT_TOKEN` is unset. `deletePosthogPerson` (used by both erasure
-  paths) hits the PostHog *management* API and needs `POSTHOG_PERSONAL_API_KEY` +
+  `POSTHOG_PROJECT_TOKEN` is unset. **Nothing here may be awaited on the request
+  path.** `posthogMiddleware` used to `await posthog.flush()` after every request;
+  `flush()` rejects on any non-2xx, so when the ingestion host started returning 526
+  every request 500'd (and, because flushes serialize, hung) — health probe included,
+  which failed a deploy. Ingestion is now left to posthog-node's background batching,
+  with retries/timeouts capped so a dead host costs seconds rather than ~49s; the tail
+  is drained by `shutdownPosthog()` on SIGTERM. `/api/ping` is deliberately not
+  captured. `POSTHOG_HOST` defaults to PostHog US **directly** — the
+  `e.thoughtful-ai.com` reverse proxy is for the browser SDK (ad blockers) and only
+  adds a failure mode server-side. `deletePosthogPerson` (used by both erasure paths)
+  hits the PostHog *management* API and needs `POSTHOG_PERSONAL_API_KEY` +
   `POSTHOG_PROJECT_ID`; without them it warns and no-ops.
 - **Tool launcher** (`src/toolGrants.ts`): the handoff grant flow for launching
   external writing tools from the sidebar (see `docs/tool-launcher-plan.md`, Phase 1).
