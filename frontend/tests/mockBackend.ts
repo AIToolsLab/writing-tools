@@ -174,12 +174,14 @@ export async function setupMockBackend(page: Page) {
 }
 
 /**
- * Sign in as a real (non-anonymous) user who is allowed past the beta gate.
+ * Sign in as a real (non-anonymous) user who is allowed past the beta gate and
+ * has already chosen a consent level.
  *
  * `setupMockBackend` covers demo pages, which mint an anonymous session. Full-mode
  * surfaces (the Word task pane, the Google Docs sidebar) instead hydrate a saved
  * device-flow token (`betterauth.token`, src/api/authTokenStore.ts) and then refuse
- * anyone whose session lacks `isAllowed: true` (pages/app). Call this after
+ * anyone whose session lacks `isAllowed: true` (pages/app), and show the onboarding
+ * consent gate to anyone whose `consentUpdatedAt` is null. Call this after
  * `setupMockBackend`: later routes win, so this get-session replaces the anonymous one.
  */
 export async function setupSignedInUser(page: Page) {
@@ -196,6 +198,10 @@ export async function setupSignedInUser(page: Page) {
 					name: 'Test User',
 					isAllowed: true,
 					loggingConsent: 'usage',
+					// Non-null means "has chosen a consent level". Without it a
+					// real (non-anonymous) user gets the onboarding consent gate
+					// (pages/app/OnboardingConsentGate.tsx) instead of the app.
+					consentUpdatedAt: '2026-01-01T00:00:00.000Z',
 				},
 			}),
 		});
