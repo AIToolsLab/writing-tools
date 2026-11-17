@@ -132,6 +132,12 @@ entries = [
     ("BETTER_AUTH_TRUSTED_ORIGINS", "http://localhost:8000,https://localhost:3000", None),
     ("GOOGLE_CLIENT_ID", "", None),
     ("GOOGLE_CLIENT_SECRET", "", None),
+    ("MINDMAP_OAUTH_CLIENT_ID", "writing-tools-mindmap", [
+        "Fixed public OAuth client for Mindmap (identifier, not a secret).",
+    ]),
+    ("MINDMAP_OAUTH_REDIRECT_URIS", "http://localhost:5181/", [
+        "Exact callback URLs. Production must contain only the production callback.",
+    ]),
     ("BETTER_AUTH_DEVICE_CLIENT_IDS", ",".join(required_device_clients), [
         "Device flow/tool client IDs (comma-separated).",
         "Set to your real client ID(s) externally before enabling in production.",

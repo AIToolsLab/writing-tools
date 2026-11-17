@@ -59,7 +59,7 @@ describe('requestDeviceCode', () => {
 			status: 502,
 			json: () =>
 				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
-		} as unknown as Response);
+		});
 		await expect(requestDeviceCode()).rejects.toThrow(
 			/device\/code failed \(502\).*backend running/,
 		);
@@ -127,7 +127,7 @@ describe('pollForToken', () => {
 			status: 502,
 			json: () =>
 				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
-		} as unknown as Response);
+		});
 		const promise = pollForToken('dev', 1);
 		await vi.runAllTimersAsync();
 		await expect(promise).resolves.toEqual({
@@ -161,6 +161,7 @@ describe('fetchUserInfo', () => {
 						loggingConsent: 'document',
 						isAllowed: true,
 						isAnonymous: true,
+						consentUpdatedAt: '2026-07-24T00:00:00.000Z',
 					},
 				},
 				true,
@@ -173,6 +174,7 @@ describe('fetchUserInfo', () => {
 			loggingConsent: 'document',
 			isAllowed: true,
 			isAnonymous: true,
+			consentUpdatedAt: '2026-07-24T00:00:00.000Z',
 		});
 		// hits the framework endpoint on the token-only path, no cookies
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -207,6 +209,8 @@ describe('fetchUserInfo', () => {
 			isAllowed: false,
 			// Same fail-closed mapping for the anonymous marker.
 			isAnonymous: false,
+			// Omitted (or non-string) consentUpdatedAt normalizes to null = "never set".
+			consentUpdatedAt: null,
 		});
 	});
 
@@ -214,7 +218,7 @@ describe('fetchUserInfo', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: true,
 			json: () => Promise.resolve(null),
-		} as Response);
+		});
 		await expect(fetchUserInfo('tok')).rejects.toThrow(/no active session/);
 	});
 
@@ -223,7 +227,7 @@ describe('fetchUserInfo', () => {
 			ok: false,
 			status: 500,
 			json: () => Promise.resolve({}),
-		} as Response);
+		});
 		await expect(fetchUserInfo('tok')).rejects.toThrow(
 			/get-session failed/,
 		);

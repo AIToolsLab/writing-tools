@@ -124,8 +124,11 @@ Notes / gotchas (all verified against the running image):
 both `frontend/` and `backend/`). Three stages:
 
 1. `frontend` — `npm ci` + `npm run build && npm run build:google-docs` → `/frontend/dist`.
-2. `backend` — `npm install` + `npm run build` (tsc) → `/app/backend/dist`.
-3. `run` — `node:24-slim`, `npm install --omit=dev`, then copies:
+2. `backend` — `npm ci` + `npm run build` (tsc) → `/app/backend/dist`, then
+   `npm prune --omit=dev`.
+3. `run` — `node:24-slim`; copies (no second install, so better-sqlite3's
+   prebuilt binary is downloaded only once):
+   - `--from=backend node_modules → ./node_modules`
    - `--from=backend dist → ./dist`
    - `--from=frontend /frontend/dist → ./public` (the static root)
    - `--from=frontend …/google-docs.bundle.js → ./public/gdocs/google-docs.bundle.js`

@@ -13,6 +13,7 @@ export type LogEventType =
   | 'taskStart'
   | 'taskComplete'
   | 'documentUpdate'
+  | 'surveyInputUpdate'
   | `aiRequest:${string}`
   | `aiResponse:${string}`
   | 'surveyComplete:intro-survey'
@@ -30,6 +31,8 @@ export interface LogEntry extends LogPayload {
   timestamp: string;
   wave: string;
   gitCommit: string;
+  sessionId: string; // unique per page load
+  seq: number; // per-session counter; (sessionId, seq) identifies an entry
 }
 
 export type ConditionCode = 'n' | 'c' | 'e' | 'a' | 'p' | 'b' | 'd';

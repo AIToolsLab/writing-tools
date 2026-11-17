@@ -9,8 +9,8 @@ import LexicalEditor, { type EditorControls } from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
-import { lowerOp } from '@/pages/my-words/interaction/ops';
-import type { EditOp } from '@/pages/my-words/interaction/types';
+import { lowerOp } from '@/docTools/ops';
+import type { EditOp } from '@/docTools/types';
 
 function Sidebar() {
 	return <SidebarInner.default />;
@@ -136,6 +136,7 @@ export function EditorScreen({
 						controls.applySplice(splice);
 					}
 				} catch (e) {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 					return Promise.reject(e as Error);
 				}
 				return Promise.resolve();

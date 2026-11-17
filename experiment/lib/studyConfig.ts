@@ -2,7 +2,7 @@ import type { ConditionCode, ConditionName } from '@/types/study';
 import scenariosData from './scenarios.json';
 
 // Study wave identifier
-export const WAVE = 'pilot-3';
+export const WAVE = 'pilot-4';
 
 // Git commit - populated at build time
 export const GIT_COMMIT = process.env.NEXT_PUBLIC_GIT_COMMIT || 'unknown';
@@ -46,10 +46,12 @@ export const letterToCondition: Record<ConditionCode, ConditionName> = {
 
 // Consent form URL (Qualtrics)
 export const CONSENT_FORM_URL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW';
+// Researcher contact, as listed in the consent form (consent-form.md)
+export const CONTACT_EMAIL = 'ken.arnold@calvin.edu';
 
 // Minimum screen dimensions
-export const MIN_SCREEN_WIDTH = 600;
-export const MIN_SCREEN_HEIGHT = 500;
+export const MIN_SCREEN_WIDTH = 800;
+export const MIN_SCREEN_HEIGHT = 600;
 
 // Valid condition codes
 export const VALID_CONDITIONS = Object.keys(letterToCondition) as ConditionCode[];
@@ -72,7 +74,6 @@ export interface ScenarioConfig {
   taskInstructions: {
     title: string;         // Page title
     description: string;   // Scenario description for participants
-    companyFraming: string; // Company reputation reminder
   };
   chat: {
     model: string;              // Colleague LLM model id (e.g. "gpt-5.5")

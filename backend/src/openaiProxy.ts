@@ -42,7 +42,8 @@ export type ProxyUser = Pick<
 export type ProxyIdentity =
 	| { kind: 'authenticated'; user: ProxyUser }
 	| { kind: 'sessionless' }
-	| { kind: 'rejected_tool_credential' };
+	| { kind: 'rejected_tool_credential' }
+	| { kind: 'rejected_oauth_credential' };
 
 export const PLATFORM_AUTH_ERROR_HEADER = 'X-Writing-Tools-Error';
 export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
@@ -233,6 +234,9 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		const identity = await options.resolveIdentity(c);
 		if (identity.kind === 'rejected_tool_credential') {
 			return platformAuthError(c, 401, 'Tool access token is invalid or expired.');
+		}
+		if (identity.kind === 'rejected_oauth_credential') {
+			return platformAuthError(c, 401, 'Access token is invalid or expired.');
 		}
 		const user = identity.kind === 'authenticated' ? identity.user : null;
 		// Enforce the beta allowlist server-side. The client also shows a "not allowed"

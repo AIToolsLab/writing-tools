@@ -24,10 +24,13 @@ export function renderWithJotai(
     store.set(atom as Parameters<typeof store.set>[0], value);
   });
 
-  return render(
-    <Provider store={store}>{ui}</Provider>,
-    renderOptions
-  );
+  // Pass the Provider as `wrapper`, not wrapped around `ui`: rerender() keeps the
+  // wrapper but replaces the whole element, so a hand-wrapped tree loses its
+  // Provider on rerender and the component remounts with fresh state.
+  return render(ui, {
+    wrapper: ({ children }) => <Provider store={store}>{children}</Provider>,
+    ...renderOptions,
+  });
 }
 
 // Re-export everything from testing-library

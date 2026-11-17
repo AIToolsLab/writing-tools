@@ -1,6 +1,7 @@
 'use client';
 
 import { atom } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
 import type { StudyParams, ConditionName } from '@/types/study';
 import { letterToCondition, DEFAULT_AUTO_REFRESH_INTERVAL } from '@/lib/studyConfig';
 
@@ -26,18 +27,31 @@ export const studyConditionAtom = atom<ConditionName>((get) => {
   return letterToCondition[params.condition];
 });
 
-/**
- * Survey form state - shared across all surveys
- */
-export const surveyInputAtom = atom<Record<string, unknown>>({});
+// Every study page transition is a full page load, so the URL at startup
+// identifies this page. Keying by page keeps one survey's answers out of the
+// next survey's surveyComplete log.
+const surveyStorageKey = (() => {
+  if (typeof window === 'undefined') return 'surveyInputs';
+  const params = new URLSearchParams(window.location.search);
+  return `surveyInputs:${params.get('username')}:${params.get('page')}`;
+})();
 
 /**
- * Helper to update study params
+ * Survey form state for the current page; saved to localStorage so answers
+ * survive a reload.
  */
-export const updateStudyParamsAtom = atom(
-  null,
-  (get, set, params: Partial<StudyParams>) => {
-    const current = get(studyParamsAtom);
-    set(studyParamsAtom, { ...current, ...params });
-  }
+export const surveyInputAtom = atomWithStorage<Record<string, unknown>>(
+  surveyStorageKey,
+  {},
+  undefined,
+  { getOnInit: true }
 );
+
+/** Forget this page's saved answers (once they're submitted). */
+export function clearSavedSurveyInputs() {
+  try {
+    localStorage.removeItem(surveyStorageKey);
+  } catch {
+    // ignore
+  }
+}

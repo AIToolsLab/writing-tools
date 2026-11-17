@@ -14,7 +14,7 @@
  * two editors serialize the same document.
  */
 import { useCallback, useContext, useEffect, useState } from 'react';
-import { Button } from 'reshaped';
+import { Button } from '@/components/button';
 import { detectPlatform } from '@/api';
 import { EditorContext } from '@/contexts/editorContext';
 import classes from './styles.module.css';

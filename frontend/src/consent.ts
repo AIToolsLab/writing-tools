@@ -66,6 +66,8 @@ const KEY_MIN_LEVEL: Record<string, ConsentLevel> = {
 	docContext: 'document',
 	message: 'document', // chat: the user's typed message
 	target: 'document', // revise: a verbatim document quote from a clicked reference
+	proposal: 'document', // chat: a proposed edit op (quotes the document)
+	offending: 'document', // chat: words a proposed edit added that weren't the writer's
 	result: 'ai_output',
 	generation: 'ai_output',
 	response: 'ai_output', // revise: the AI-generated visualization text
@@ -96,4 +98,21 @@ export function filterPayloadForConsent(
 		kept[key] = value;
 	}
 	return { allowed: true, payload: kept };
+}
+
+/**
+ * Whether analytics (PostHog) may capture for this session: signed in, at
+ * `usage` or above, and at a level the user actually chose. A fresh user's
+ * level is only the default until they press Continue on the consent screen.
+ */
+export function analyticsAllowed(session: {
+	isAuthenticated: boolean;
+	hasSetConsent: boolean;
+	loggingConsent: ConsentLevel;
+}): boolean {
+	return (
+		session.isAuthenticated &&
+		session.hasSetConsent &&
+		consentRank(session.loggingConsent) >= consentRank('usage')
+	);
 }

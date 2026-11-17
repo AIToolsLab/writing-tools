@@ -1,10 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../index', () => ({ SERVER_URL: '/api' }));
+vi.mock('../index', () => ({ SERVER_ORIGIN: '', SERVER_URL: '/api' }));
 
-import { changeConsent, deleteAccount, eraseActivity } from '../account';
+import {
+	accountPageUrl,
+	changeConsent,
+	deleteAccount,
+	eraseActivity,
+} from '../account';
 
 let fetchMock: ReturnType<typeof vi.fn>;
+
+describe('accountPageUrl', () => {
+	it('points at the backend origin, not the page origin', () => {
+		// Google Docs sidebar: the origin comes from the bundle's script src.
+		expect(accountPageUrl('https://app.thoughtful-ai.com')).toBe(
+			'https://app.thoughtful-ai.com/account.html',
+		);
+		// Task pane / editor: the page's own origin.
+		expect(accountPageUrl('https://localhost:3000')).toBe(
+			'https://localhost:3000/account.html',
+		);
+		// Outside a browser the origin is empty, so the link is root-relative.
+		expect(accountPageUrl()).toBe('/account.html');
+	});
+});
 
 beforeEach(() => {
 	fetchMock = vi.fn();
@@ -17,9 +37,19 @@ afterEach(() => {
 
 describe('account API', () => {
 	it('uses the bearer-only path for consent changes', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () =>
+				Promise.resolve({
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+				}),
+		});
 
-		await changeConsent('tok', 'ai_output');
+		await expect(changeConsent('tok', 'ai_output')).resolves.toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+		});
 
 		expect(fetchMock).toHaveBeenCalledWith('/api/me/consent', {
 			method: 'POST',
@@ -32,8 +62,22 @@ describe('account API', () => {
 		});
 	});
 
+	// When this happens: mid-deploy, a page from a new server can save through an
+	// old one, whose reply is `{ loggingConsent }` with no timestamp. Treating that
+	// as a failed save keeps the consent screen up with an error, instead of
+	// "succeeding" while the screen silently stays open.
+	it('treats a reply without a timestamp as a failed save', async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve({ loggingConsent: 'usage' }),
+		});
+		await expect(changeConsent('tok', 'usage')).rejects.toThrow(
+			'invalid snapshot',
+		);
+	});
+
 	it('uses the bearer-only path for activity erasure', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({ ok: true });
 
 		await eraseActivity('tok');
 
@@ -49,7 +93,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'SESSION_EXPIRED' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,
@@ -63,7 +107,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'INVALID_PASSWORD' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,

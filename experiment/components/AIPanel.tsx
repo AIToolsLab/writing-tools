@@ -1,13 +1,11 @@
 'use client';
 
-import { Fragment, useCallback, useRef, useState, useEffect } from 'react';
+import { Fragment, useCallback, useRef, useState, useEffect, useEffectEvent } from 'react';
 import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
-import type { UIMessage } from '@ai-sdk/react';
 import type { ConversationMessage, GenerationResult, SavedItem, TextEditorState } from '@/types';
 import { log } from '@/lib/logging';
 import { API_TIMEOUT_MS } from '@/lib/studyConfig';
-import { parseMessageContent } from '@/lib/chatUtils';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
@@ -23,85 +21,94 @@ const visibleNameForMode = {
 const modes = ['example_sentences', 'example_withblanks', 'complete_document', 'complete_document_withblanks', 'analysis_readerPerspective', 'proposal_advice'] as const;
 const MIN_TEXT_LENGTH_FOR_SUGGESTION = 25;
 
-function getMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => (part as { type: 'text'; text: string }).text)
-    .join('');
-}
-
-function formatConversationHistory(messages: UIMessage[]): ConversationMessage[] {
-  const result: ConversationMessage[] = [];
-  for (const msg of messages) {
-    const text = getMessageText(msg);
-    if (!text.trim()) continue;
-
-    if (msg.role === 'user') {
-      result.push({ role: 'user', content: text });
-    } else {
-      // Assistant messages may be JSON arrays of multiple messages
-      const parts = parseMessageContent(text);
-      for (const part of parts) {
-        if (part.trim()) {
-          result.push({ role: 'colleague', content: part });
-        }
-      }
-    }
-  }
-  return result;
-}
-
 function GenerationResultDisplay({ generation }: { generation: GenerationResult }) {
   return (
     <div className="prose prose-sm max-w-none">
       <div className="font-bold text-sm mb-2 text-gray-900">
         {visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
       </div>
-      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{generation.result}</div>
+      <div className="text-sm text-gray-800 leading-relaxed space-y-1.5">
+        {generation.result.split(/\n\s*\n/).map((block, i) => (
+          <div key={i} className="whitespace-pre-wrap">{block.trim()}</div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function SavedGenerations({
-  savedItems,
-  deleteSavedItem,
-}: {
-  savedItems: SavedItem[];
-  deleteSavedItem: (dateSaved: Date) => void;
-}) {
+function SavedGenerations({ savedItems }: { savedItems: SavedItem[] }) {
+  // One card is highlighted at a time: the one under the cursor, or else the
+  // newest (savedItems is newest-first). The rest are muted.
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const highlightedKey = hoveredKey ?? savedItems[0]?.dateSaved.toString();
+
+  // Checks whether the highlighted card runs past the bottom of the scroll area
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const [isCutOff, setIsCutOff] = useState(false);
+
+  const updateCutOff = useCallback(() => {
+    const container = scrollRef.current;
+    const card = highlightedKey ? cardRefs.current.get(highlightedKey) : undefined;
+    if (!container || !card) {
+      setIsCutOff(false);
+      return;
+    }
+    // 1px of slack for subpixel rounding
+    setIsCutOff(card.getBoundingClientRect().bottom > container.getBoundingClientRect().bottom + 1);
+  }, [highlightedKey]);
+
+  // ResizeObserver reports each element once when observing starts, so this
+  // also checks right away whenever the highlighted card or the list changes
+  useEffect(() => {
+    const container = scrollRef.current;
+    const card = highlightedKey ? cardRefs.current.get(highlightedKey) : undefined;
+    const observer = new ResizeObserver(updateCutOff);
+    if (container) observer.observe(container);
+    if (card) observer.observe(card);
+    return () => observer.disconnect();
+  }, [updateCutOff, highlightedKey, savedItems]);
+
   return (
-    <div className="flex-1 overflow-y-auto space-y-3">
-      {savedItems.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-center">
-          <div className="text-sm text-gray-500 font-medium">No suggestions yet...</div>
-        </div>
-      ) : (
-        savedItems.map((savedItem) => {
-          const key = savedItem.dateSaved.toString();
-          return (
-            <div
-              key={key}
-              className="bg-blue-50 border border-blue-200 rounded p-3 hover:bg-blue-100 hover:shadow-md transition-all"
-            >
-              <div className="text-xs font-semibold text-blue-700 mb-2">
-                {savedItem.dateSaved.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </div>
-              <div className="mb-3">
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <div ref={scrollRef} onScroll={updateCutOff} className="flex-1 overflow-y-auto space-y-3">
+        {savedItems.length === 0 ? (
+          <div className="flex items-center justify-center h-24 text-center">
+            <div className="text-sm text-gray-500 font-medium">No suggestions yet...</div>
+          </div>
+        ) : (
+          savedItems.map((savedItem) => {
+            const key = savedItem.dateSaved.toString();
+            const isHighlighted = key === highlightedKey;
+            return (
+              <div
+                key={key}
+                ref={(el) => {
+                  if (el) cardRefs.current.set(key, el);
+                  else cardRefs.current.delete(key);
+                }}
+                onMouseEnter={() => setHoveredKey(key)}
+                onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
+                className={`border rounded p-3 transition-all ${
+                  isHighlighted
+                    ? 'bg-blue-50 border-blue-200 shadow-md'
+                    : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="mb-1 text-xs text-gray-400">
+                  {savedItem.dateSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
                 <GenerationResultDisplay generation={savedItem.generation} />
               </div>
-              <button
-                type="button"
-                onClick={() => deleteSavedItem(savedItem.dateSaved)}
-                className="text-xs px-2 py-1 rounded font-medium bg-red-100 text-red-800 hover:bg-red-200 active:bg-red-300 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          );
-        })
+            );
+          })
+        )}
+      </div>
+      {isCutOff && (
+        // Doesn't take pointer events, so hovering and scrolling pass through to the cards
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 pt-6 pb-1.5 bg-gradient-to-t from-white via-white/90 to-transparent text-center">
+          <span className="text-xs font-bold text-orange-600">Scroll down for more...</span>
+        </div>
       )}
     </div>
   );
@@ -110,13 +117,14 @@ function SavedGenerations({
 interface AIPanelProps {
   writingAreaRef?: RefObject<WritingAreaRef | null>;
   isStudyMode?: boolean;
-  chatMessages?: UIMessage[];
+  // What the participant has seen of the colleague chat
+  chatConversation?: ConversationMessage[];
 }
 
 export default function AIPanel({
   writingAreaRef,
   isStudyMode = false,
-  chatMessages,
+  chatConversation,
 }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -126,7 +134,6 @@ export default function AIPanel({
   const studyCondition = useAtomValue(studyConditionAtom);
   const mode = isStudyMode ? studyCondition : undefined;
   const autoRefreshInterval = studyParams.autoRefreshInterval;
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string; chatMessageCount: number } | null>(null);
   const previousResponseRef = useRef<GenerationResult | null>(null);
 
@@ -139,10 +146,6 @@ export default function AIPanel({
       },
       ...prev,
     ]);
-  }, []);
-
-  const deleteSavedItem = useCallback((dateSaved: Date) => {
-    setSavedItems((prev) => prev.filter((item) => item.dateSaved !== dateSaved));
   }, []);
 
   const getSuggestion = useCallback(
@@ -176,9 +179,7 @@ export default function AIPanel({
         }
 
         // Format conversation history if available
-        const conversationHistory = chatMessages?.length
-          ? formatConversationHistory(chatMessages)
-          : undefined;
+        const conversationHistory = chatConversation?.length ? chatConversation : undefined;
         const chatMessageCount = conversationHistory?.length ?? 0;
 
         // Check if this is a duplicate request (same content, mode, and conversation state)
@@ -197,7 +198,7 @@ export default function AIPanel({
 
         // Log AI request in study mode
         if (isStudyMode) {
-          await log({
+          log({
             username: studyParams.username,
             event: `aiRequest:${modeToUse}`,
             extra_data: {
@@ -247,7 +248,7 @@ export default function AIPanel({
 
             // Log AI response in study mode
             if (isStudyMode) {
-              await log({
+              log({
                 username: studyParams.username,
                 event: `aiResponse:${modeToUse}`,
                 extra_data: {
@@ -279,26 +280,25 @@ export default function AIPanel({
         setIsLoading(false);
       }
     },
-    [writingAreaRef, save, mode, isStudyMode, studyParams, chatMessages]
+    [writingAreaRef, save, mode, isStudyMode, studyParams, chatConversation]
   );
 
-  // Auto-refresh logic for study mode
+  // Auto-refresh logic for study mode. The tick calls the latest getSuggestion
+  // without depending on it: getSuggestion changes whenever the chat does, and
+  // restarting the interval on each change would push refreshes back
+  // indefinitely while the participant is chatting.
+  const autoRefresh = useEffectEvent(() => {
+    getSuggestion(mode, true);
+  });
+
   useEffect(() => {
     if (!isStudyMode || !mode || mode === 'no_ai') {
       return;
     }
 
-    // Set up auto-refresh interval
-    autoRefreshIntervalRef.current = setInterval(() => {
-      getSuggestion(mode, true);
-    }, autoRefreshInterval);
-
-    return () => {
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
-      }
-    };
-  }, [isStudyMode, mode, autoRefreshInterval, getSuggestion]);
+    const interval = setInterval(autoRefresh, autoRefreshInterval);
+    return () => clearInterval(interval);
+  }, [isStudyMode, mode, autoRefreshInterval]);
 
   let alerts = null;
 
@@ -310,7 +310,7 @@ export default function AIPanel({
     );
   } else if (mode !== 'no_ai' && autoRefreshInterval > 0) {
     alerts = (
-      <div className="p-3">
+      <div className="p-2">
         <div className="text-xs font-medium text-gray-700 text-center">
           Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
         </div>
@@ -335,8 +335,8 @@ export default function AIPanel({
   }
 
   return (
-    <div className="h-full p-4 text-sm text-gray-700 flex flex-col overflow-hidden">
-      <h3 className="text-sm font-bold text-gray-900 mb-3">AI Writing Assistant</h3>
+    <div className="h-full p-2 text-sm text-gray-700 flex flex-col overflow-hidden">
+      <h3 className="text-sm font-bold text-gray-900 text-center">AI Writing Assistant</h3>
 
       {!isStudyMode && (
         <div className="flex gap-1.5 mb-3 flex-wrap">
@@ -368,9 +368,9 @@ export default function AIPanel({
 
       {alerts}
 
-      <SavedGenerations savedItems={savedItems} deleteSavedItem={deleteSavedItem} />
+      <SavedGenerations savedItems={savedItems} />
 
-      <div className="text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-300 font-medium">
+      <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-300 font-medium">
         AI-generated text may vary in quality
       </div>
     </div>

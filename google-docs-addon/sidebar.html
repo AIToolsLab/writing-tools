@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Writing Tools</title>
+  <title>Thoughtful</title>
   
   <style>
     /* Base styles while loading */
@@ -56,7 +56,7 @@
   <div id="root">
     <div class="loading-container">
       <div class="loading-spinner"></div>
-      <div class="loading-text">Loading Writing Tools...</div>
+      <div class="loading-text">Loading Thoughtful...</div>
     </div>
   </div>
   
@@ -189,14 +189,21 @@
       - otherwise             -> load the production bundle automatically
 
     To develop, rename your test doc to include [dev], then pick a source:
-    "localhost" needs `npm run dev-server:google-docs` running; "staging" is the
-    latest merge to main; "prod" is the released version.
+    "localhost" needs the frontend dev server (`npm run dev-server` in frontend/)
+    running; "staging" is the latest merge to main; "prod" is the released
+    version.
+
+    Each source serves both google-docs.bundle.js and the backend API, and the
+    bundle derives its API origin from its own <script src> (see
+    frontend/src/api/index.ts), so picking a source here switches the backend
+    too.
   -->
   <script>
     (function () {
       var DEV_MARKER = '[dev]';
       var SOURCES = {
-        localhost: 'http://localhost:3001',
+        localhost: 'https://localhost:3000',
+        localhostNoSSL: 'http://localhost:3000',
         staging: 'https://staging.thoughtful-ai.com',
         prod: 'https://app.thoughtful-ai.com'
       };
@@ -204,7 +211,7 @@
       function loadFrom(base) {
         document.getElementById('root').innerHTML =
           '<div class="loading-container"><div class="loading-spinner"></div>' +
-          '<div class="loading-text">Loading Writing Tools…</div></div>';
+          '<div class="loading-text">Loading Thoughtful…</div></div>';
 
         var link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -215,7 +222,7 @@
         s.src = base + '/google-docs.bundle.js';
         s.onerror = function () {
           document.getElementById('root').innerHTML =
-            '<div class="error-container"><h3>Could not load Writing Tools</h3>' +
+            '<div class="error-container"><h3>Could not load Thoughtful</h3>' +
             '<p>Failed to load the app from <code>' + base + '</code>.</p></div>';
         };
         document.body.appendChild(s);
@@ -225,7 +232,7 @@
         var root = document.getElementById('root');
         root.innerHTML =
           '<div style="padding:20px;color:#202124;">' +
-          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Writing Tools from:</p>' +
+          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Thoughtful from:</p>' +
           '<div id="srcButtons"></div></div>';
         var box = document.getElementById('srcButtons');
         Object.keys(SOURCES).forEach(function (key) {

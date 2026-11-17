@@ -4,11 +4,21 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.get_env import (
+    entries,
     existing_entries,
     merge_csv_assignment,
     prompt_demo_openai_key,
     resolved,
 )
+
+
+class MindmapOAuthEntriesTests(unittest.TestCase):
+    def test_development_defaults_register_only_localhost(self):
+        values = {key: value for key, value, _comments in entries}
+        self.assertEqual(values["MINDMAP_OAUTH_CLIENT_ID"], "writing-tools-mindmap")
+        self.assertEqual(
+            values["MINDMAP_OAUTH_REDIRECT_URIS"], "http://localhost:5181/"
+        )
 
 
 class MergeCsvAssignmentTests(unittest.TestCase):

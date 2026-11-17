@@ -6,8 +6,8 @@ import {
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
-import { consentRank } from '@/consent';
-import { CgGoogle } from 'react-icons/cg';
+import { accountPageUrl } from '@/api/account';
+import { analyticsAllowed } from '@/consent';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -24,10 +24,11 @@ import {
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { Reshaped, Button } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
+import '@/theme.css';
 
 // PostHog configuration - project token is safe to commit publicly
 const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
@@ -130,7 +131,8 @@ function DeviceAuthStatus({
 				<div style={{ margin: '0.25rem 0 0.75rem' }}>
 					<Button
 						href={authorization.verificationUri}
-						attributes={{ target: '_blank', rel: 'noopener' }}
+						target="_blank"
+						rel="noopener"
 						color="primary"
 						variant="outline"
 						size="small"
@@ -276,11 +278,6 @@ function AppInner() {
 
 						<hr />
 
-						<p>Sign in with Google</p>
-						<div className={classes.authProviderIconContainer}>
-							<CgGoogle className={classes.authProviderIcon} />
-						</div>
-
 						<div
 							className={classes.widthAlert}
 							style={{
@@ -349,6 +346,15 @@ function AppInner() {
 		);
 	}
 
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
+	}
+
 	// Which page renders is the registry's call, not a switch here — see
 	// pages/registry.tsx. resolvePage also handles a stored selection that is no
 	// longer visible (a lab page whose flag was turned off) by falling back to the
@@ -367,8 +373,32 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
+						<div className={classes.accountEntry}>
+							{/* The identity chip doubles as the entry point to account &
+							    privacy — account affordances belong next to identity, and the
+							    nav strip switches in-app pages, so an outbound link had no
+							    business there. In an Office task pane this opens the system
+							    browser, which has a separate storage partition and may require
+							    another sign-in. Do not pass a bearer token in the URL; an
+							    in-app account screen is the eventual solution. */}
+							<a
+								href={accountPageUrl()}
+								target="_blank"
+								rel="noopener"
+								className={classes.userNameContainer}
+								title="Account &amp; privacy"
+								// Starts with the visible text, so voice control ("click User") matches.
+								aria-label={`User: ${user.name}, account and privacy settings`}
+								aria-describedby="account-browser-note"
+							>
+								User: {user.name}
+							</a>
+							<span
+								id="account-browser-note"
+								className={classes.accountBrowserNote}
+							>
+								Opens in browser; sign-in may be required.
+							</span>
 						</div>
 					</div>
 					{authErrorType !== null && (
@@ -453,8 +483,8 @@ function AppWithProviders({
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
 				// Capture nothing until we know the user's consent level. The
-				// PostHogConsentBridge opts in (and identifies) once a session with
-				// consent >= 'usage' loads. Until then — and at level 'none' — PostHog
+				// PostHogConsentBridge opts in (and identifies) once the user has
+				// chosen consent >= 'usage'. Until then — and at level 'none' — PostHog
 				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
 				// level 'none' is fully silent (no crash reports either).
 				opt_out_capturing_by_default: true,
@@ -471,29 +501,34 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out and clears any
+ * user has CHOSEN a level >= 'usage'; otherwise stays opted out and clears any
  * prior identity. Renders nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+	const { isAuthenticated, hasSetConsent, loggingConsent, user } =
+		useAppAuth();
 
 	useEffect(() => {
 		if (!posthog) return;
-		const analyticsAllowed =
-			isAuthenticated &&
-			consentRank(loggingConsent) >= consentRank('usage');
+		// hasSetConsent matters: this bridge is mounted beside the app, so it runs
+		// while the onboarding consent gate is still up.
+		const allowed = analyticsAllowed({
+			isAuthenticated,
+			hasSetConsent,
+			loggingConsent,
+		});
 
 		// Require a stable id before opting in, so we never capture untethered
 		// anonymous events that can't be tied to a deletable account identity.
-		if (analyticsAllowed && user?.id) {
+		if (allowed && user?.id) {
 			posthog.identify(user.id);
 			posthog.opt_in_capturing();
 		} else {
 			posthog.opt_out_capturing();
 			posthog.reset(); // drop any identity captured under a prior session
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+	}, [posthog, isAuthenticated, hasSetConsent, loggingConsent, user?.id]);
 
 	return null;
 }
@@ -505,20 +540,18 @@ export default function App() {
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
-				<Reshaped theme="slate">
-					<AppAuthProvider>
-						<PostHogConsentBridge />
-						<AppAuthTokenBridge>
-							{/* The document's brief is shared by every page, so it
-							    is loaded once here rather than per page. Inside the
-							    auth providers because the section it feeds logs
-							    edits. */}
-							<DocBriefProvider>
-								<AppInner />
-							</DocBriefProvider>
-						</AppAuthTokenBridge>
-					</AppAuthProvider>
-				</Reshaped>
+				<AppAuthProvider>
+					<PostHogConsentBridge />
+					<AppAuthTokenBridge>
+						{/* The document's brief is shared by every page, so it
+						    is loaded once here rather than per page. Inside the
+						    auth providers because the section it feeds logs
+						    edits. */}
+						<DocBriefProvider>
+							<AppInner />
+						</DocBriefProvider>
+					</AppAuthTokenBridge>
+				</AppAuthProvider>
 			</ChatContextWrapper>
 		</AppWithProviders>
 	);

@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { buildCorpus } from '../corpus';
+import { buildCorpus } from '@/docTools/corpus';
 import {
 	startVoiceSession,
 	type TranscriptSpeaker,
@@ -45,7 +45,7 @@ const clipLabel = (s: string, n = 30) =>
 	s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
 export function VoiceSession(props: {
-	editor: EditorAPI;
+	editor: EditableEditorAPI;
 	scratchpad: string;
 	onScratchpadChange: (v: string) => void;
 }) {

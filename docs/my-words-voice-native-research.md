@@ -7,7 +7,10 @@ hands-free, genuinely collaborative), the platform options, and the questions
 worth resolving before building.
 
 **Companion to** `docs/my-words-interaction-design.md` (the text-prototype design
-brief; branch `claude/mywords-interaction-design-cuvkl3`). That note argues the
+brief; branch `claude/mywords-interaction-design-cuvkl3`). The text prototype
+has since been removed in favour of Chat's own-words edits
+([chat-document-tools.md](chat-document-tools.md)); references below to
+`interaction/` are historical. That note argues the
 *turn* should be one conversational move, then yield the floor. This note asks
 what happens when the floor is made of *sound*.
 

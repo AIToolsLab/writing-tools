@@ -44,11 +44,26 @@ import type { LogFn } from '@/hooks/useLog';
  *       its `brief_edited` event, which any page can emit. Revise emits
  *       `reference_resolved` after each clicked doctext link, recording whether
  *       the quote was found and how long the search took.
+ *   5 — `reference_clicked` / `reference_resolved` are no longer Revise-only:
+ *       Chat renders doctext citations too, so `page` is now what says where a
+ *       reference event came from. A reader that took those event names to mean
+ *       Revise has to read `page` instead.
+ *   6 — Chat proposes edits: `edit_proposed`, `edit_auto_denied`,
+ *       `edit_accepted`, `edit_declined`, `edit_set_aside`, `edit_failed`,
+ *       `edit_undone`, `edit_undo_refused`. Content rides in `proposal` and
+ *       `offending`, both document-level.
+ *   7 — Added the Workbench lab page (token-level highlights and predictions
+ *       against vLLM) and its events, all usage-level metadata: response
+ *       times, counts and lengths, never text.
+ *   8 — The Workbench moved from vLLM to the writing engine
+ *       (llm.thoughtful-ai.com), so its `ms` aren't comparable with version 7's.
+ *       `highlights_scored` and `predictions_fetched` add `serverMs`, the
+ *       engine's own time for the request.
  */
-export const LOG_SCHEMA_VERSION = 4;
+export const LOG_SCHEMA_VERSION = 8;
 
 /** Pages that emit events. Matches the user-facing tabs. */
-export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
+export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';
 
 /**
  * Emit one event through the page's {@link LogFn}, stamping the schema version,
@@ -159,27 +174,6 @@ export const reviseLog = {
 	) {
 		return emit(log, 'revise', 'visualization_error', data);
 	},
-	/** The writer clicked a document reference (doctext link) in a result. */
-	referenceClicked(log: LogFn, data: { target: string }) {
-		return emit(log, 'revise', 'reference_clicked', data);
-	},
-	/**
-	 * A clicked reference finished resolving. `found` records whether the quote
-	 * was located at all; `attempts` and `durationMs` measure what the writer
-	 * waited through (each attempt is a round-trip to the editor), which is the
-	 * only way to see from the logs that a link felt broken.
-	 */
-	referenceResolved(
-		log: LogFn,
-		data: {
-			target: string;
-			found: boolean;
-			attempts: number;
-			durationMs: number;
-		},
-	) {
-		return emit(log, 'revise', 'reference_resolved', data);
-	},
 };
 
 /**
@@ -200,6 +194,79 @@ export const chatLog = {
 	/** The assistant response failed to stream (and was not cancelled). */
 	responseError(log: LogFn, data: { error: string; code?: string }) {
 		return emit(log, 'chat', 'response_error', data);
+	},
+	/** The writer discarded the transcript and started a new conversation. */
+	conversationReset(log: LogFn) {
+		return emit(log, 'chat', 'conversation_reset');
+	},
+	/**
+	 * An edit proposal's lifecycle. `tool` and `kind` are usage-level; the op
+	 * itself goes in `proposal` (document-level, it quotes the document).
+	 *   - proposed: shown to the writer for approval
+	 *   - auto_denied: failed the word-bank check, never shown; `offending` is
+	 *     the first run of words that wasn't the writer's
+	 *   - accepted / declined / set_aside: the writer's verdict (set aside = they
+	 *     sent a new message with the card still open)
+	 *   - failed: accepted, but applying it failed (e.g. the text moved)
+	 *   - undone / undo_refused: the writer clicked Undo; refused when the text
+	 *     had changed since
+	 */
+	edit(
+		log: LogFn,
+		outcome:
+			| 'proposed'
+			| 'auto_denied'
+			| 'accepted'
+			| 'declined'
+			| 'set_aside'
+			| 'failed'
+			| 'undone'
+			| 'undo_refused',
+		data: {
+			tool: string;
+			kind: string;
+			toolCallId: string;
+			proposal?: unknown;
+			/** auto_denied: why (`word_bank`, or `no_match` for a stale target). */
+			reason?: 'word_bank' | 'no_match';
+			offending?: string;
+		},
+	) {
+		return emit(log, 'chat', `edit_${outcome}`, data);
+	},
+};
+
+/**
+ * Document references (doctext links) — the citations in a model reply that
+ * point at the writer's own text.
+ *
+ * More than one page renders them (Revise's visualizations are built out of
+ * them; Chat cites the same way), and they behave identically wherever they
+ * appear, so — like {@link briefLog} — the page is a parameter rather than
+ * being baked into the helper.
+ */
+export const referenceLog = {
+	/** The writer clicked a document reference. */
+	clicked(log: LogFn, page: LogPage, data: { target: string }) {
+		return emit(log, page, 'reference_clicked', data);
+	},
+	/**
+	 * A clicked reference finished resolving. `found` records whether the quote
+	 * was located at all; `attempts` and `durationMs` measure what the writer
+	 * waited through (each attempt is a round-trip to the editor), which is the
+	 * only way to see from the logs that a link felt broken.
+	 */
+	resolved(
+		log: LogFn,
+		page: LogPage,
+		data: {
+			target: string;
+			found: boolean;
+			attempts: number;
+			durationMs: number;
+		},
+	) {
+		return emit(log, page, 'reference_resolved', data);
 	},
 };
 
@@ -244,5 +311,70 @@ export const toolsLog = {
 	/** The writer opened an ad-hoc pasted URL directly (no grant; device-flow tool). */
 	adhocOpened(log: LogFn) {
 		return emit(log, 'tools', 'adhoc_opened', {});
+	},
+};
+
+/**
+ * Workbench page: a passage taken off to the side, scored for highlights or
+ * rewritten with predictions, against the writing engine directly. `ms` is
+ * the wall time of the whole operation (all its requests), which is what to
+ * watch for the server getting untenable; `serverMs` is the engine's share.
+ * Before schema 8 the server was vLLM, so earlier times aren't comparable.
+ */
+export const workbenchLog = {
+	/** The writer pulled a passage from the document. */
+	passagePulled(
+		log: LogFn,
+		data: { source: string; chars: number; hasPreviousParagraph: boolean },
+	) {
+		return emit(log, 'workbench', 'passage_pulled', data);
+	},
+	/** A highlights request finished. */
+	highlightsScored(
+		log: LogFn,
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			tokens: number;
+			ranges: number;
+		},
+	) {
+		return emit(log, 'workbench', 'highlights_scored', data);
+	},
+	/** A predictions request finished (cache misses only). */
+	predictionsFetched(
+		log: LogFn,
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			branches: number;
+			words: number;
+		},
+	) {
+		return emit(log, 'workbench', 'predictions_fetched', data);
+	},
+	/**
+	 * The writer took a suggestion. `draftChars` is the draft before it, so
+	 * readers can compare how much of a rewrite came from accepted text.
+	 */
+	suggestionAccepted(
+		log: LogFn,
+		data: {
+			slot: number;
+			acceptedChars: number;
+			draftChars: number;
+			fromCache: boolean;
+		},
+	) {
+		return emit(log, 'workbench', 'suggestion_accepted', data);
+	},
+	/** A request to the writing engine failed. */
+	requestFailed(
+		log: LogFn,
+		data: { kind: 'highlights' | 'predictions'; error: string },
+	) {
+		return emit(log, 'workbench', 'request_failed', data);
 	},
 };

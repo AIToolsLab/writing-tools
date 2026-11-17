@@ -1,14 +1,15 @@
 /**
  * Feature flags for in-progress pages.
  *
- * Deliberately tiny: a flag is a string, it is off unless switched on, and the
- * only thing it gates today is whether a page appears in the Labs menu. This is
- * not an experimentation system. If we ever need percentage rollout or per-user
- * targeting, that belongs on the session server-side — the `alwaysAllow` /
- * `isAllowed` pair in `backend/src/auth.ts` is the pattern to copy — not here,
- * because anything decided in this file is decided on the user's machine and can
- * be switched on by anyone who opens devtools. Flags here hide unfinished work
- * from a closed beta; they are not an access control.
+ * Deliberately tiny: a flag is a string, it is off unless switched on, and it
+ * gates whether a page appears in the Labs menu or, for `rewording`, whether
+ * Draft offers that mode at all. This is not an experimentation system. If we
+ * ever need percentage rollout or per-user targeting, that belongs on the
+ * session server-side — the `alwaysAllow` / `isAllowed` pair in
+ * `backend/src/auth.ts` is the pattern to copy — not here, because anything
+ * decided in this file is decided on the user's machine and can be switched on
+ * by anyone who opens devtools. Flags here hide unfinished work from a closed
+ * beta; they are not an access control.
  *
  * ## Turning one on
  *

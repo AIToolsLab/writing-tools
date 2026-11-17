@@ -8,6 +8,7 @@ export enum PageName {
 	MyWords = 'my-words',
 	Tools = 'tools',
 	Debug = 'debug',
+	Workbench = 'workbench',
 }
 
 export enum OverallMode {
