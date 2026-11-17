@@ -1,69 +1,102 @@
 import { describe, expect, it } from 'vitest';
-import type { CompletionChoice, TokenLogprob } from '@/api/vllm';
+import type { Continuation, ScoredToken } from '@/api/writingEngine';
 import {
 	completeWords,
+	firstUnits,
 	firstWords,
-	rangesFromPromptLogprobs,
-	splitLastPretoken,
+	rangesFromScores,
+	unitBranches,
 } from '../engine';
 
-const lp = (decoded: string, logprob: number, rank: number): TokenLogprob => ({
-	decoded_token: decoded,
-	logprob,
-	rank,
-});
+const tok = (
+	text: string,
+	logprob: number,
+	top = text,
+	top_logprob = logprob,
+): ScoredToken => ({ text, logprob, top, top_logprob });
 
-/**
- * A prompt of [prefix token 0, then the passage's tokens], shaped like what
- * vLLM returns. Token 12 is the leading byte of a split character: vLLM
- * decodes it as '' and puts the whole character on token 13.
- */
-function choice(): CompletionChoice {
-	return {
-		index: 0,
-		text: '',
-		prompt_token_ids: [0, 10, 11, 12, 13, 14],
-		prompt_logprobs: [
-			null,
-			{ '10': lp('A', -0.1, 1) },
-			// Written " big"; model preferred " large" by e^2.
-			{ '11': lp(' big', -3, 3), '99': lp(' large', -1, 1) },
-			{ '12': lp('', -5, 2), '98': lp(' (', -1, 1) },
-			{ '13': lp(' 𝔽', -0.5, 1) },
-			{ '14': lp('.', -0.2, 1) },
-		],
-	};
-}
+describe('rangesFromScores', () => {
+	// Shaped like /v1/score: tokens that split a character arrive merged.
+	const tokens = [
+		tok('A', -0.1),
+		// Written " big"; model preferred " large" by e^2.
+		tok(' big', -3, ' large', -1),
+		tok(' 𝔽', -9, ' (', -1),
+		tok('.', -0.2),
+	];
 
-describe('rangesFromPromptLogprobs', () => {
-	it('marks where the top choice differs and skips empty split-character tokens', () => {
+	it('marks where the top choice differs, without the leading space', () => {
 		const passage = 'A big 𝔽.';
-		const res = rangesFromPromptLogprobs(choice(), 1, passage);
+		const res = rangesFromScores(tokens, passage);
 		expect(res.warning).toBe('');
-		expect(res.tokenCount).toBe(5);
-		expect(res.ranges).toHaveLength(1);
-		const [r] = res.ranges;
-		// The leading space isn't marked.
-		expect(passage.slice(r.start, r.end)).toBe('big');
-		expect(r.alternative).toBe(' large');
-		expect(r.detail).toBe('7.4× more likely');
+		expect(res.ranges.map((r) => passage.slice(r.start, r.end))).toEqual([
+			'big',
+			'𝔽',
+		]);
+		expect(res.ranges[0].alternative).toBe(' large');
+		expect(res.ranges[0].detail).toBe('7.4× more likely');
 	});
 
 	it('warns when the tokens don’t add up to the passage', () => {
-		const res = rangesFromPromptLogprobs(choice(), 1, 'A big 𝔽. extra');
+		const res = rangesFromScores(tokens, 'A big 𝔽. extra');
 		expect(res.warning).not.toBe('');
 	});
 });
 
-describe('word helpers', () => {
-	it('splits off the last pre-token chunk', () => {
-		expect(splitLastPretoken('Use de')).toEqual(['Use', ' de']);
-		expect(splitLastPretoken('Use ')).toEqual(['Use', ' ']);
+const cont = (text: string, prob: number, done = true): Continuation => ({
+	text,
+	prob,
+	end: false,
+	done,
+});
+
+describe('unitBranches', () => {
+	it('adds up continuations that start with the same word', () => {
+		// After "a pop": the server's answer for one-word units.
+		const got = unitBranches(
+			[
+				cont('ular spot', 0.75),
+				cont('ular favorite', 0.15),
+				cont('ular, pleasant', 0.03),
+				cont('', 0.01), // ending the message
+				cont('lar', 0.001, false),
+			],
+			1,
+		);
+		expect(got.map((b) => b.text)).toEqual(['ular', 'ular,', 'lar']);
+		expect(got[0].prob).toBeCloseTo(0.9);
 	});
 
+	it('puts whole units ahead of partial ones', () => {
+		const got = unitBranches(
+			[cont(' deep', 0.6, false), cont(' care about', 0.1)],
+			1,
+		);
+		expect(got.map((b) => b.text)).toEqual([' care', ' deep']);
+	});
+
+	it('groups by two words when asked', () => {
+		const got = unitBranches(
+			[cont(' deep learning is', 0.3), cont(' deep learning,', 0.2)],
+			2,
+		);
+		expect(got).toHaveLength(2);
+		expect(got[0].text).toBe(' deep learning');
+	});
+});
+
+describe('word helpers', () => {
 	it('finds complete words only when followed by whitespace', () => {
 		expect(completeWords(' deep learning', 1)).toBe(' deep');
 		expect(completeWords(' deep', 1)).toBeNull();
 		expect(firstWords(' deep learning is', 2)).toBe(' deep learning');
+	});
+
+	it('segments scripts without spaces', () => {
+		expect(firstUnits('我们今天', 1).text.length).toBeGreaterThan(0);
+		expect(firstUnits(' deep learning', 1)).toEqual({
+			text: ' deep',
+			complete: true,
+		});
 	});
 });

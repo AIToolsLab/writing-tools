@@ -21,7 +21,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Problem with Jaden's panel tomorrow",
+        "Hey Alex, we have a problem with Jaden's panel tomorrow",
         "Room got double-booked. Gotta move him. But gotta keep him happy!",
         "I'm on a call, so need you to email him. What info do you need to sort this out?"
       ],
@@ -39,7 +39,7 @@
         }
       ],
       "systemPromptLines": [
-        "You are Sarah Martinez, an Events Coordinator at Meridian Events. The person you're chatting with is your new colleague, a junior Events Coordinator on their first day.",
+        "You are Sarah Martinez, an Events Coordinator at Meridian Events. The person you're chatting with is your new colleague, Alex Johnson, a junior Events Coordinator on their first day.",
         "",
         "SCENARIO CONTEXT:",
         "- Tomorrow, Jaden Thompson, a social media influencer, has a panel scheduled for 1pm in Room 12.",
@@ -105,7 +105,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Hey, we have a problem with tomorrow's MediCore demo 😓",
+        "Hey Alex, we have a problem with tomorrow's MediCore demo 😓",
         "Found a critical bug in the reporting module this morning. Can't show it like this to a VP.",
         "I'm in the middle of a call. Can you email her? Let me know what info you need."
       ],
@@ -123,7 +123,7 @@
         }
       ],
       "systemPromptLines": [
-        "You are Marcus Chen, a Solutions Engineer at Crestview Solutions. The person you're chatting with is your new colleague, a junior engineer on their first day.",
+        "You are Marcus Chen, a Solutions Engineer at Crestview Solutions. The person you're chatting with is your new colleague, Alex Johnson, a junior engineer on their first day.",
         "",
         "SCENARIO CONTEXT:",
         "- Crestview Solutions builds software that helps healthcare organizations manage operational data and generate automated reports.",
@@ -191,7 +191,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Hey, it looks like Jordan's chair order won't make tomorrow's delivery.",
+        "Hey Alex, it looks like Jordan's chair order won't make tomorrow's delivery.",
         "We should figure out another option he'd be okay with. Gotta keep him happy.",
         "I'm on a call right now. You'll need to email him, but I can answer any questions."
       ],
@@ -219,7 +219,7 @@
         }
       ],
       "systemPromptLines": [
-        "You are Dana Schmidt, Sales Support Lead at Northline Office Supply. The person you're chatting with is your new colleague, a Sales Support Assistant on their first day.",
+        "You are Dana Schmidt, Sales Support Lead at Northline Office Supply. The person you're chatting with is your new colleague, Alex Johnson, a Sales Support Assistant on their first day.",
         "",
         "SCENARIO CONTEXT:",
         "- Jordan Ellis, a customer, is moving into a new office tomorrow and expects a delivery of office chairs from Northline Office Supply.",

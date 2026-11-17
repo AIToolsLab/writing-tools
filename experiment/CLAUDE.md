@@ -75,6 +75,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `lib/studyConfig.ts` - Study page order, conditions, timing, **scenario definitions**
 - `lib/messageTiming.ts` - Realistic chat timing calculations
 - `lib/logging.ts` - Durable event logging queue (see `docs/logging.md`)
+- `scripts/log-viewer.html` - Drag-and-drop viewer for study logs (open in a browser; see `docs/logging.md`)
 
 ### API Routes
 - `app/api/chat/route.ts` - Chat endpoint (colleague model + reasoning effort come from the scenario config, with scenario-specific system prompt)

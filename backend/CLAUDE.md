@@ -79,6 +79,8 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   webpack dev-server proxy; Docker sets `PORT=5000`.
 - `npm test` — Vitest unit tests (`src/**/*.test.ts`).
 - `npm run build` — `tsc` → `dist/`. `npm start` runs the built server.
+- `npm run migrate` — apply database migrations (`src/migrate.ts`) to `DATA_DIR`.
+  Safe to rerun; only missing migrations are applied.
 
 ## Env vars
 

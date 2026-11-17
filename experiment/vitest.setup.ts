@@ -30,3 +30,10 @@ Element.prototype.scrollIntoView = vi.fn();
 
 // Mock window.scrollTo
 window.scrollTo = vi.fn();
+
+// Mock ResizeObserver (not implemented in jsdom)
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;

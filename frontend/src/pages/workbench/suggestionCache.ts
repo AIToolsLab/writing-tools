@@ -4,10 +4,11 @@
  * The property: typing any prefix of a prediction doesn't change that
  * prediction's suffix — the only thing a keystroke does to the suggestions on
  * screen is cull the ones it no longer matches. Re-querying on every keystroke
- * can't give that, because the model sees a different token boundary each time
- * and predicts something else. So each request's branches are stored as a
- * tree rooted at the draft it was made for, and every later draft is answered
- * from the stored trees first:
+ * doesn't guarantee that: the engine conditions on characters, so survivors'
+ * relative odds hold, but a fresh answer can rank a new unit above them or
+ * drop one the search didn't reach this time. So each request's branches are
+ * stored as a tree rooted at the draft it was made for, and every later draft
+ * is answered from the stored trees first:
  *
  * - A branch survives while `tree.draft + branch.text` still starts with the
  *   current draft and has something left over; what's left over is shown.

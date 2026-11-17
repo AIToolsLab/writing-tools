@@ -184,6 +184,13 @@ export interface UserInfo {
 	 * rather than letting them manage consent on a throwaway identity.
 	 */
 	isAnonymous?: boolean;
+	/**
+	 * When the user last set their consent level (ISO string over JSON), or null
+	 * if they never have. `null` is the first-run signal the onboarding consent
+	 * gate keys on; later it doubles as a "last changed" value on the account
+	 * surface. Set server-side on consent change and on anonymous create.
+	 */
+	consentUpdatedAt?: string | null;
 }
 
 /**
@@ -199,6 +206,7 @@ interface GetSessionResponse {
 		loggingConsent?: unknown;
 		isAllowed?: unknown;
 		isAnonymous?: unknown;
+		consentUpdatedAt?: unknown;
 	};
 }
 
@@ -237,6 +245,7 @@ export async function fetchUserInfo(
 		loggingConsent: raw,
 		isAllowed,
 		isAnonymous,
+		consentUpdatedAt,
 	} = data.user;
 	return {
 		id,
@@ -247,6 +256,10 @@ export async function fetchUserInfo(
 		loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
 		isAllowed: isAllowed === true,
 		isAnonymous: isAnonymous === true,
+		// A Date server-side; JSON gives an ISO string. Normalize anything
+		// falsy/non-string to null so `null` cleanly means "never set".
+		consentUpdatedAt:
+			typeof consentUpdatedAt === 'string' ? consentUpdatedAt : null,
 	};
 }
 

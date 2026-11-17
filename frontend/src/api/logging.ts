@@ -55,8 +55,12 @@ import type { LogFn } from '@/hooks/useLog';
  *   7 — Added the Workbench lab page (token-level highlights and predictions
  *       against vLLM) and its events, all usage-level metadata: response
  *       times, counts and lengths, never text.
+ *   8 — The Workbench moved from vLLM to the writing engine
+ *       (llm.thoughtful-ai.com), so its `ms` aren't comparable with version 7's.
+ *       `highlights_scored` and `predictions_fetched` add `serverMs`, the
+ *       engine's own time for the request.
  */
-export const LOG_SCHEMA_VERSION = 7;
+export const LOG_SCHEMA_VERSION = 8;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';
@@ -312,9 +316,10 @@ export const toolsLog = {
 
 /**
  * Workbench page: a passage taken off to the side, scored for highlights or
- * rewritten with predictions, against the vLLM server directly. `ms` is the
- * wall time of the whole operation (all its requests), which is what to watch
- * for the server getting untenable.
+ * rewritten with predictions, against the writing engine directly. `ms` is
+ * the wall time of the whole operation (all its requests), which is what to
+ * watch for the server getting untenable; `serverMs` is the engine's share.
+ * Before schema 8 the server was vLLM, so earlier times aren't comparable.
  */
 export const workbenchLog = {
 	/** The writer pulled a passage from the document. */
@@ -327,14 +332,26 @@ export const workbenchLog = {
 	/** A highlights request finished. */
 	highlightsScored(
 		log: LogFn,
-		data: { model: string; ms: number; tokens: number; ranges: number },
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			tokens: number;
+			ranges: number;
+		},
 	) {
 		return emit(log, 'workbench', 'highlights_scored', data);
 	},
 	/** A predictions request finished (cache misses only). */
 	predictionsFetched(
 		log: LogFn,
-		data: { model: string; ms: number; branches: number; words: number },
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			branches: number;
+			words: number;
+		},
 	) {
 		return emit(log, 'workbench', 'predictions_fetched', data);
 	},
@@ -353,7 +370,7 @@ export const workbenchLog = {
 	) {
 		return emit(log, 'workbench', 'suggestion_accepted', data);
 	},
-	/** A request to the vLLM server failed. */
+	/** A request to the writing engine failed. */
 	requestFailed(
 		log: LogFn,
 		data: { kind: 'highlights' | 'predictions'; error: string },

@@ -9,6 +9,7 @@ this server just injects the API key and streams responses, and records study lo
 ```bash
 npm install
 python ../scripts/get_env.py   # creates backend/.env (OPENAI_API_KEY, LOG_SECRET, ...)
+npm run migrate                # creates/updates the database in DATA_DIR (safe to rerun)
 npm run dev                    # http://localhost:8000  (matches the Vite dev-server proxy)
 ```
 
