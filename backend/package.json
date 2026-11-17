@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/migrate.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
