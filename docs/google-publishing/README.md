@@ -47,8 +47,8 @@ Under **Branding**:
 - Privacy policy: `https://app.thoughtful-ai.com/privacypolicy.html`
 - Terms of service: `https://app.thoughtful-ai.com/termsofservice.html`
 
-Under **Data Access**, list the scopes the script requests (see
-`google-docs-addon/README.md` → OAuth Scopes). All three are non-sensitive, so no
+Under **Data Access**, list the scopes from `oauthScopes` in
+`google-docs-addon/appsscript.json`. All three are non-sensitive, so no
 security assessment is needed.
 
 Under **Audience**, click **Publish app** to move from Testing to In production.
@@ -70,7 +70,7 @@ See `google-docs-addon/README.md` → *Releasing a new version*. In short:
 - App integration: **Editor add-on → Docs add-on**, with the script ID and
   **script version** from step 3. Don't choose "Google Workspace add-on": that
   type uses the card UI, and Thoughtful uses an HtmlService sidebar.
-- OAuth scopes: exactly the scopes from step 2.
+- OAuth scopes: exactly the `oauthScopes` from `appsscript.json`.
 - Developer name, website, and email.
 
 ## 5. Marketplace SDK → Store Listing

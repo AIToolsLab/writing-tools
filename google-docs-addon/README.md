@@ -174,19 +174,18 @@ build output.
 
 ## OAuth Scopes
 
-`appsscript.json` has no `oauthScopes` block, so Apps Script **infers** the scopes
-from the code. Today that yields:
+The add-on requests these scopes, declared explicitly in the `oauthScopes` block
+of `appsscript.json`:
 
-- `documents.currentonly` — read/edit only the current document (`DocumentApp`,
-  limited by the `@OnlyCurrentDoc` annotation at the top of `Code.gs`)
+- `documents.currentonly` — read/edit only the current document (`DocumentApp`)
 - `script.container.ui` — show the add-on menu and sidebar (`DocumentApp.getUi()`)
 - `userinfo.email` — identify the current user (`Session.getActiveUser()`)
 
-The Marketplace SDK's App Configuration page lists scopes separately, and they must
-match what the script actually requests. Because they're inferred, any change to
-`Code.gs` that touches a new service (e.g. the Drive API for comments, #580) changes
-the scopes silently — check the project's **Overview → Project OAuth Scopes** in the
-Apps Script editor after such a change and update the SDK page to match.
+They're declared rather than inferred so they can't drift from the list entered on
+the Marketplace SDK's App Configuration page, which must match exactly. The cost:
+if `Code.gs` starts using a service that needs another scope (e.g. the Drive API
+for comments, #580), it fails at runtime until you add the scope here **and** on
+the SDK page (and the consent screen's Data Access list).
 
 Apps Script makes no outbound HTTP calls: the React sidebar fetches the backend
 (and its own JS/CSS bundle) directly from the browser, which needs no Apps Script
