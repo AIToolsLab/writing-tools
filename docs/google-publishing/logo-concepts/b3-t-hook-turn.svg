@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept B3: as B2, but the stroke changes colour where the crossbar turns into the question (cf. D3) -->
+  <rect width="120" height="120" rx="26" fill="#1F4E5F"/>
+  <g fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44 22V80c0 10 5 15 14 15" stroke="#F4EFE6"/>
+    <path d="M26 42H68" stroke="#F4EFE6"/>
+    <path d="M68 42H76a15 15 0 0 1 0 30V76" stroke="#D98E3A"/>
+  </g>
+  <circle cx="76" cy="94" r="7" fill="#D98E3A"/>
+</svg>
