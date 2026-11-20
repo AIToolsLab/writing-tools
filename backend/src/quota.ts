@@ -27,6 +27,13 @@
  * for now:
  *   INSERT INTO user_quota (user_id, weekly_cap_usd) VALUES ('<id>', 5);
  *   INSERT INTO user_quota (user_id, exempt, note) VALUES ('<id>', 1, 'researcher');
+ *
+ * On top of the per-user caps there is one app-wide daily budget
+ * (APP_DAILY_CAP_USD, default $20), over ALL spend: every user, exempt ones and
+ * demo traffic included. Past it everyone is on the fallback model; past
+ * APP_HARD_LIMIT_MULTIPLIER × it, every request is refused until the 7am reset.
+ * It has no "nearing" state: writers can't do anything about the app's budget.
+ * A user is held to whichever of the two is stricter; `scope` says which.
  */
 import { db } from './db.js';
 import { costUsd, maxOutputRate } from './pricing.js';
@@ -40,10 +47,22 @@ export const FALLBACK_MODEL = 'gpt-6-luna';
 export const NEARING_FRACTION = 0.8;
 /** Multiple of a cap at which even fallback requests are refused. */
 export const HARD_LIMIT_MULTIPLIER = 3;
+export const DEFAULT_APP_DAILY_CAP_USD = 20;
+/**
+ * Multiple of the app-wide budget at which everything is refused. Lower than the
+ * per-user multiple: the app budget is a real budget, and on the fallback model
+ * the extra half still buys thousands of requests.
+ */
+export const APP_HARD_LIMIT_MULTIPLIER = 1.5;
 const RESET_HOUR = 7;
 
 function quotaTimeZone(): string {
 	return process.env.QUOTA_TIMEZONE || 'America/Detroit';
+}
+
+function appDailyCapUsd(): number {
+	const fromEnv = Number(process.env.APP_DAILY_CAP_USD);
+	return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_APP_DAILY_CAP_USD;
 }
 
 export type QuotaState = 'ok' | 'nearing' | 'fallback' | 'blocked';
@@ -60,9 +79,11 @@ export interface QuotaStatus {
 	/** False for exempt users and for buckets that aren't a person (demo, anonymous). */
 	capped: boolean;
 	state: QuotaState;
+	/** Whose limit set `state`: the user's own caps, or the app-wide budget. */
+	scope: 'user' | 'app';
 	daily: WindowStatus | null;
 	weekly: WindowStatus | null;
-	/** When the binding (most-used) window resets; null when uncapped. */
+	/** When `state` lifts; null when it's ok and the user is uncapped. */
 	resetsAt: number | null;
 }
 
@@ -196,13 +217,39 @@ export function deleteUserQuota(userId: string): void {
 
 // --- spend --------------------------------------------------------------------
 
+type UsageSums = Record<string, number | string>;
+
+const SUM_COLUMNS = `SUM(input_tokens) AS input_tokens,
+	SUM(cached_input_tokens) AS cached_input_tokens,
+	SUM(output_tokens) AS output_tokens,
+	SUM(cache_write_tokens) AS cache_write_tokens,
+	SUM(cache_write_30m_tokens) AS cache_write_30m_tokens`;
+
+/**
+ * Dollars for one per-model group of token sums.
+ *
+ * A model with no rate (history from before the proxy refused unpriced models) is
+ * costed as if every token were output at the most expensive rate in the table:
+ * overcounting stops someone early, undercounting removes their cap.
+ */
+function groupCost(r: UsageSums): number {
+	const inputTokens = Number(r.input_tokens);
+	const outputTokens = Number(r.output_tokens);
+	return (
+		costUsd({
+			model: String(r.model),
+			inputTokens,
+			cachedInputTokens: Number(r.cached_input_tokens),
+			outputTokens,
+			cacheWriteTokens: Number(r.cache_write_tokens),
+			cacheWrite30mTokens: Number(r.cache_write_30m_tokens),
+		}) ?? ((inputTokens + outputTokens) * maxOutputRate()) / 1_000_000
+	);
+}
+
 /**
  * Dollars spent by `userId` since `weekStart`, and the part of it since `dayStart`
  * (dayStart ≥ weekStart always: a week starts on a day boundary).
- *
- * A row for a model with no rate (history from before the proxy refused unpriced
- * models) is costed as if every token were output at the most expensive rate in the
- * table: overcounting stops someone early, undercounting removes their cap.
  */
 function spend(
 	userId: string,
@@ -211,36 +258,33 @@ function spend(
 ): { dayUsd: number; weekUsd: number } {
 	const rows = db()
 		.prepare(
-			`SELECT model, ts >= ? AS today,
-				SUM(input_tokens) AS input_tokens,
-				SUM(cached_input_tokens) AS cached_input_tokens,
-				SUM(output_tokens) AS output_tokens,
-				SUM(cache_write_tokens) AS cache_write_tokens,
-				SUM(cache_write_30m_tokens) AS cache_write_30m_tokens
+			`SELECT model, ts >= ? AS today, ${SUM_COLUMNS}
 			FROM llm_usage
 			WHERE user_id = ? AND ts >= ?
 			GROUP BY model, today`,
 		)
-		.all(dayStart, userId, weekStart) as Array<Record<string, number | string>>;
+		.all(dayStart, userId, weekStart) as UsageSums[];
 
 	let dayUsd = 0;
 	let weekUsd = 0;
 	for (const r of rows) {
-		const inputTokens = Number(r.input_tokens);
-		const outputTokens = Number(r.output_tokens);
-		const cost =
-			costUsd({
-				model: String(r.model),
-				inputTokens,
-				cachedInputTokens: Number(r.cached_input_tokens),
-				outputTokens,
-				cacheWriteTokens: Number(r.cache_write_tokens),
-				cacheWrite30mTokens: Number(r.cache_write_30m_tokens),
-			}) ?? ((inputTokens + outputTokens) * maxOutputRate()) / 1_000_000;
+		const cost = groupCost(r);
 		weekUsd += cost;
 		if (Number(r.today) === 1) dayUsd += cost;
 	}
 	return { dayUsd, weekUsd };
+}
+
+/**
+ * Dollars spent by everyone since `dayStart`. Runs on every proxied request, with
+ * no cache: the covering index from db.ts v6 keeps it about a millisecond for a
+ * few thousand rows a day, growing linearly (~20ms at 100k rows/day).
+ */
+export const APP_SPEND_SQL = `SELECT model, ${SUM_COLUMNS} FROM llm_usage WHERE ts >= ? GROUP BY model`;
+
+function appSpend(dayStart: number): number {
+	const rows = db().prepare(APP_SPEND_SQL).all(dayStart) as UsageSums[];
+	return rows.reduce((total, r) => total + groupCost(r), 0);
 }
 
 // --- status -------------------------------------------------------------------
@@ -252,11 +296,13 @@ function stateFor(fraction: number): QuotaState {
 	return 'ok';
 }
 
-/** Where `userId` stands against their caps at `now`. */
-export function quotaStatus(userId: string, now: number = Date.now()): QuotaStatus {
-	const uncapped: QuotaStatus = {
+const RANK: Record<QuotaState, number> = { ok: 0, nearing: 1, fallback: 2, blocked: 3 };
+
+/** The user's own caps only. */
+function userStatus(userId: string, w: QuotaWindows): Omit<QuotaStatus, 'scope'> {
+	const uncapped = {
 		capped: false,
-		state: 'ok',
+		state: 'ok' as const,
 		daily: null,
 		weekly: null,
 		resetsAt: null,
@@ -265,7 +311,6 @@ export function quotaStatus(userId: string, now: number = Date.now()): QuotaStat
 	const caps = capsFor(userId);
 	if (caps.exempt) return uncapped;
 
-	const w = quotaWindows(now);
 	const { dayUsd, weekUsd } = spend(userId, w.weekStart, w.dayStart);
 	const daily: WindowStatus = {
 		spentUsd: dayUsd,
@@ -285,10 +330,32 @@ export function quotaStatus(userId: string, now: number = Date.now()): QuotaStat
 	const state = stateFor(Math.max(daily.fraction, weekly.fraction));
 	const resetsAt = Math.max(
 		...[daily, weekly]
-			.filter((w) => stateFor(w.fraction) === state)
-			.map((w) => w.resetsAt),
+			.filter((win) => stateFor(win.fraction) === state)
+			.map((win) => win.resetsAt),
 	);
 	return { capped: true, state, daily, weekly, resetsAt };
+}
+
+/** The app-wide daily budget's state: ok, fallback or blocked (never nearing). */
+function appState(w: QuotaWindows): QuotaState {
+	const fraction = appSpend(w.dayStart) / appDailyCapUsd();
+	if (fraction >= APP_HARD_LIMIT_MULTIPLIER) return 'blocked';
+	if (fraction >= 1) return 'fallback';
+	return 'ok';
+}
+
+/**
+ * Where `userId` stands at `now`: the stricter of their own caps and the app-wide
+ * budget. On a tie the user's own caps are reported, since they may last longer.
+ */
+export function quotaStatus(userId: string, now: number = Date.now()): QuotaStatus {
+	const w = quotaWindows(now);
+	const user = userStatus(userId, w);
+	const app = appState(w);
+	if (RANK[app] > RANK[user.state]) {
+		return { ...user, state: app, scope: 'app', resetsAt: w.dayEnd };
+	}
+	return { ...user, scope: 'user' };
 }
 
 /** Percent of a window used, rounded, for display. */
@@ -306,6 +373,7 @@ export function publicStatus(status: QuotaStatus) {
 	return {
 		capped: status.capped,
 		state: status.state,
+		scope: status.scope,
 		daily: status.daily
 			? { percentUsed: percent(status.daily), resetsAt: iso(status.daily.resetsAt) }
 			: null,

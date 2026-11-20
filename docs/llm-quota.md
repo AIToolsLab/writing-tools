@@ -18,6 +18,29 @@ enforced in the OpenAI proxy (`backend/src/openaiProxy.ts`).
 | Realtime voice | Unmetered: audio goes browser → OpenAI directly, so the cap can't see it. Refused (`403 voice_unavailable`) for every capped account and every demo user (anonymous or sessionless, even though the demo key is separately capped). Only accounts marked exempt can use it. |
 | Shared buckets | The sessionless `demo` bucket and local-dev `anonymous` bucket aren't people and aren't capped. The demo key's OpenAI project limit covers `demo`. Anonymous demo *sessions* each have their own id and are capped like anyone else. |
 
+## App-wide daily budget
+
+On top of the per-user caps, one daily budget covers **all** spend: every user,
+exempt accounts, and demo traffic (`APP_DAILY_CAP_USD`, default $20, same 7 a.m.
+reset). It's a guard against a sudden influx of users. The OpenAI hard limit is
+monthly, so it can't stop one bad day from using up the month.
+
+- Past $20, everyone is on the fallback model.
+- Past 1.5× ($30, `APP_HARD_LIMIT_MULTIPLIER`), every request is refused with
+  `429 app_quota_exceeded`. That's lower than the per-user 3× because this is a
+  real budget, and on luna the extra $10 still covers thousands of requests.
+- There's no "nearing" state: writers can't do anything about the app's budget.
+- A user is held to whichever limit is stricter. `scope: 'app' | 'user'` in
+  `/api/me/quota` says which, and the notice, account page and error copy say "AI
+  use across the app" rather than "you've used…".
+
+The check sums every row since the day's reset on each request, with no cache. A
+covering index (db.ts v6) keeps that around 1ms for a few thousand rows a day.
+Measured on a dev container with a year of history (730k rows), it grows
+linearly: ~0.4ms at 2k rows/day, ~4ms at 20k, ~23ms at 100k. A plain `ts` index
+was about twice as slow at volume, and slower than a full scan at 100k rows/day.
+A test checks that the query plan stays on the covering index.
+
 ## Overrides (by hand, for now)
 
 ```sql
@@ -33,9 +56,10 @@ Account deletion removes the row.
 
 Each proxied response for a capped user carries `X-Writing-Tools-Quota:
 ok|nearing|fallback|blocked` (the state as of just *before* that request),
-`X-Writing-Tools-Quota-Resets: <ISO time>` when that state isn't `ok`, and
+`X-Writing-Tools-Quota-Resets: <ISO time>` and `X-Writing-Tools-Quota-Scope:
+user|app` when that state isn't `ok`, and
 `X-Writing-Tools-Model-Substituted: gpt-6-luna` when the model was swapped. The
-reset header exists for external clients, which can't call `GET /api/me/quota`
+reset and scope headers exist for external clients, which can't call `GET /api/me/quota`
 (see `docs/oauth-provider.md`, "Client contract").
 `authorizedFetch` feeds the header to a small store (`frontend/src/api/quota.ts`).
 When the state changes, the taskpane notice fetches `GET /api/me/quota` for the

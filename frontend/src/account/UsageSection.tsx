@@ -35,6 +35,19 @@ function WindowLine({ label, window }: { label: string; window: QuotaWindow }) {
 	);
 }
 
+/** Said only when the app-wide daily budget, not the writer's own, is biting. */
+function AppBudgetNote({ status }: { status: QuotaStatus }) {
+	if (status.scope !== 'app' || status.state === 'ok') return null;
+	const until = status.resetsAt ? formatReset(status.resetsAt) : 'tomorrow morning';
+	return (
+		<p className={status.state === 'blocked' ? classes.error : classes.muted}>
+			{status.state === 'blocked'
+				? `AI use across the app has hit today’s budget, so AI features are paused for everyone until ${until}.`
+				: `AI use across the app is high today, so everyone’s responses come from a smaller model until ${until}.`}
+		</p>
+	);
+}
+
 export function UsageSection() {
 	const session = useAppAuth();
 	const [status, setStatus] = useState<QuotaStatus | null>(null);
@@ -71,9 +84,12 @@ export function UsageSection() {
 			) : !status ? (
 				<p className={classes.muted}>Loading…</p>
 			) : !status.capped ? (
-				<p className={classes.sectionIntro}>
-					This account has no AI usage limit.
-				</p>
+				<>
+					<p className={classes.sectionIntro}>
+						This account has no AI usage limit.
+					</p>
+					<AppBudgetNote status={status} />
+				</>
 			) : (
 				<>
 					<p className={classes.sectionIntro}>
@@ -88,7 +104,8 @@ export function UsageSection() {
 					{status.weekly ? (
 						<WindowLine label="This week" window={status.weekly} />
 					) : null}
-					{status.state === 'blocked' ? (
+					<AppBudgetNote status={status} />
+					{status.state === 'blocked' && status.scope === 'user' ? (
 						<p className={classes.error}>
 							AI features are paused until{' '}
 							{status.resetsAt ? formatReset(status.resetsAt) : 'your allowance resets'}.

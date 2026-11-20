@@ -9,9 +9,11 @@ import { closeDb, db } from '../db.js';
 import {
 	MODEL_SUBSTITUTED_HEADER,
 	QUOTA_RESETS_HEADER,
+	QUOTA_SCOPE_HEADER,
 	QUOTA_STATE_HEADER,
 } from '../openaiProxy.js';
 import {
+	APP_SPEND_SQL,
 	FALLBACK_MODEL,
 	publicStatus,
 	quotaStatus,
@@ -189,6 +191,7 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('ok');
 		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBeNull();
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBeNull();
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBeNull();
 		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
 		expect(sent.model).toBe('gpt-6.2-sol');
@@ -201,6 +204,7 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('fallback');
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBe(FALLBACK_MODEL);
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('user');
 		// Over the daily cap only, so the state lifts at the next daily reset.
 		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBe(
 			new Date(quotaWindows(Date.now()).dayEnd).toISOString(),
@@ -221,6 +225,77 @@ describe('proxy enforcement', () => {
 			Date.now(),
 		);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe('app-wide daily budget ($20)', () => {
+	it('puts everyone on the fallback model once total spend passes it', () => {
+		spend('heavy-1', 12);
+		spend(DEMO_USER_ID, 9); // demo traffic counts toward the budget
+		const fresh = quotaStatus('fresh');
+		expect(fresh).toMatchObject({ state: 'fallback', scope: 'app' });
+		// Not a personal limit: the user's own windows are untouched.
+		expect(publicStatus(fresh).daily?.percentUsed).toBe(0);
+	});
+
+	it('applies to exempt users too', () => {
+		db().prepare(`INSERT INTO user_quota (user_id, exempt) VALUES ('researcher', 1)`).run();
+		spend('heavy-1', 21);
+		expect(quotaStatus('researcher')).toMatchObject({
+			capped: false,
+			state: 'fallback',
+			scope: 'app',
+		});
+	});
+
+	it('refuses everything past 1.5× the budget, saying whose limit it is', async () => {
+		spend('heavy-1', 31);
+		expect(quotaStatus('fresh')).toMatchObject({ state: 'blocked', scope: 'app' });
+		const fetchMock = stubUpstream();
+		const res = await proxyRequest(appWithUser(real('fresh')), 'gpt-6.2-sol');
+		expect(res.status).toBe(429);
+		expect(await res.json()).toMatchObject({ error: { code: 'app_quota_exceeded' } });
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('app');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('has no "nearing" state — writers can’t act on the app budget', () => {
+		spend('heavy-1', 19);
+		expect(quotaStatus('fresh').state).toBe('ok');
+	});
+
+	it('reports the user’s own limit when both are at the same level', () => {
+		spend('u', 0.6); // over u's own daily cap
+		spend('heavy-1', 21); // and over the app budget
+		expect(quotaStatus('u')).toMatchObject({ state: 'fallback', scope: 'user' });
+	});
+
+	it('is set by APP_DAILY_CAP_USD', () => {
+		vi.stubEnv('APP_DAILY_CAP_USD', '5');
+		spend('heavy-1', 6);
+		expect(quotaStatus('fresh').state).toBe('fallback');
+	});
+
+	it('swaps the model for a user under their own caps', async () => {
+		spend('heavy-1', 21);
+		const fetchMock = stubUpstream();
+		const res = await proxyRequest(appWithUser(real('fresh')), 'gpt-6.2-sol');
+		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('fallback');
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('app');
+		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBe(
+			new Date(quotaWindows(Date.now()).dayEnd).toISOString(),
+		);
+		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
+		expect(sent.model).toBe(FALLBACK_MODEL);
+	});
+
+	it('reads only the covering index, never the table', () => {
+		const plan = db()
+			.prepare(`EXPLAIN QUERY PLAN ${APP_SPEND_SQL}`)
+			.all(0) as Array<{ detail: string }>;
+		expect(plan.map((p) => p.detail).join(' ')).toContain(
+			'COVERING INDEX llm_usage_ts_cost',
+		);
 	});
 });
 

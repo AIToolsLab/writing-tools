@@ -51,8 +51,8 @@ export const PLATFORM_AUTH_ERROR_HEADER = 'X-Writing-Tools-Error';
 export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
 /**
  * The caller's spend-cap state (quota.ts) as of just before this request:
- * ok | nearing | fallback. Absent for uncapped users. Lets the client show a
- * heads-up without polling.
+ * ok | nearing | fallback | blocked. Absent for uncapped users while the app-wide
+ * budget is fine. Lets the client show a heads-up without polling.
  */
 export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
 /**
@@ -61,6 +61,11 @@ export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
  * they can say "until Monday 7:00 AM".
  */
 export const QUOTA_RESETS_HEADER = 'X-Writing-Tools-Quota-Resets';
+/**
+ * Whose limit set a non-`ok` state: `user` (their own caps) or `app` (the app-wide
+ * daily budget), so a client can word its notice. Sent with QUOTA_RESETS_HEADER.
+ */
+export const QUOTA_SCOPE_HEADER = 'X-Writing-Tools-Quota-Scope';
 /** Set (to the model actually used) when the proxy swapped in the fallback model. */
 export const MODEL_SUBSTITUTED_HEADER = 'X-Writing-Tools-Model-Substituted';
 
@@ -348,22 +353,37 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		// line always completes; see quota.ts for the states.
 		const quota = quotaStatus(attribution.userId);
 		const quotaHeaders: Record<string, string> = {};
-		if (quota.capped) quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
-		if (quota.capped && quota.state !== 'ok' && quota.resetsAt !== null) {
-			quotaHeaders[QUOTA_RESETS_HEADER] = new Date(quota.resetsAt).toISOString();
+		// Uncapped users get the header too once the app-wide budget is biting.
+		if (quota.capped || quota.state !== 'ok') {
+			quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
+		}
+		if (quota.state !== 'ok') {
+			quotaHeaders[QUOTA_SCOPE_HEADER] = quota.scope;
+			if (quota.resetsAt !== null) {
+				quotaHeaders[QUOTA_RESETS_HEADER] = new Date(quota.resetsAt).toISOString();
+			}
 		}
 		if (quota.state === 'blocked') {
 			const retryAfter = Math.max(
 				1,
 				Math.ceil(((quota.resetsAt ?? Date.now()) - Date.now()) / 1000),
 			);
-			return proxyError(
-				c,
-				429,
-				'quota_exceeded',
-				'AI usage limit reached for now.',
-				{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
-			);
+			// Distinct codes so the client can say whose limit it is.
+			return quota.scope === 'app'
+				? proxyError(
+						c,
+						429,
+						'app_quota_exceeded',
+						'The app-wide AI budget for today is used up.',
+						{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
+					)
+				: proxyError(
+						c,
+						429,
+						'quota_exceeded',
+						'AI usage limit reached for now.',
+						{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
+					);
 		}
 		let outgoing = parsedBody;
 		let outgoingText = body;
@@ -535,7 +555,8 @@ function proxyError(
 		| 'model_not_allowed'
 		| 'service_tier_not_allowed'
 		| 'background_not_allowed'
-		| 'quota_exceeded',
+		| 'quota_exceeded'
+		| 'app_quota_exceeded',
 	detail: string,
 	headers: Record<string, string> = {},
 ): Response {

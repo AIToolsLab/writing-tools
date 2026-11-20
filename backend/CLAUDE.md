@@ -55,8 +55,12 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   the request's model for `FALLBACK_MODEL` (gpt-6-luna); at 3× it refuses with 429
   `quota_exceeded`. Admin overrides live in the `user_quota` table (hand-edited SQL;
   `exempt = 1` = no cap). Realtime voice is unmetered, so it's refused for every
-  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` (+ `-Resets`) on
-  proxy responses and `GET /api/me/quota`, never dollars.
+  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` (+ `-Resets`, `-Scope`) on
+  proxy responses and `GET /api/me/quota`, never dollars. An app-wide daily budget
+  (`APP_DAILY_CAP_USD`, $20) over all spend, demo included, puts everyone on the
+  fallback model past it and refuses everything (429 `app_quota_exceeded`) past
+  1.5×. It's queried on every request with no cache, kept fast by a covering index
+  (db.ts v6).
 - **Logging** (`src/logging.ts`): structured JSONL to `backend/logs/<username>.jsonl`,
   same shape/location the Python backend used. `validateUsername` is the
   path-traversal guard. Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`)
@@ -106,7 +110,7 @@ pays for sessionless requests — without it they're refused wherever auth is on
 `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` (management API — needed for
 "delete my data" to purge a user's PostHog person; unset => that step no-ops), `LOG_DIR`
 (overrides just the logs subdir), `QUOTA_TIMEZONE` (spend-cap reset zone;
-default `America/Detroit`). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
+default `America/Detroit`), `APP_DAILY_CAP_USD` (app-wide daily LLM budget; default 20). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `MINDMAP_OAUTH_CLIENT_ID`, and
 `MINDMAP_OAUTH_REDIRECT_URIS`. For local dev, run `python scripts/get_env.py` to generate
