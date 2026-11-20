@@ -118,7 +118,7 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
 		`);
 	},
-	// v4 — cache-write token counts. gpt-6-era models charge for writing prompt
+	// v4 — cache-write token counts. GPT-5.6+ models charge for writing prompt
 	// tokens to the cache (more than ordinary input), so spend that ignored them
 	// would under-count. cache_write_30m_tokens is the part reported as 30-minute
 	// writes; the rest of cache_write_tokens is priced at the more expensive 12-hour
