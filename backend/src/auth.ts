@@ -24,6 +24,7 @@ import {
 } from './consent.js';
 import { db } from './db.js';
 import { eraseLoggedData } from './erasure.js';
+import { deleteUserQuota } from './quota.js';
 import { anonymizeUserUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
 
@@ -110,6 +111,7 @@ export const auth = betterAuth({
 			beforeDelete: async (user) => {
 				await eraseLoggedData(user.id);
 				anonymizeUserUsage(user.id);
+				deleteUserQuota(user.id);
 			},
 		},
 	},

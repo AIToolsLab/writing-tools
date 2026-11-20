@@ -46,6 +46,14 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   (and the `cache_write_30m_tokens` part; the rest is priced at the 12-hour rate).
   Account deletion anonymizes these rows rather than dropping them (see
   `anonymizeUserUsage`).
+- **Spend caps** (`src/quota.ts`, see `docs/llm-quota.md`): per-user daily/weekly
+  dollar caps (defaults $0.50 / $1.00, resetting 7am `QUOTA_TIMEZONE`, weekly on
+  Mondays), checked by the proxy *before* each request. Over a cap the proxy swaps
+  the request's model for `FALLBACK_MODEL` (gpt-6-luna); at 3× it refuses with 429
+  `quota_exceeded`. Admin overrides live in the `user_quota` table (hand-edited SQL;
+  `exempt = 1` = no cap). Realtime voice is unmetered, so it's refused for every
+  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` on
+  proxy responses and `GET /api/me/quota`, never dollars.
 - **Logging** (`src/logging.ts`): structured JSONL to `backend/logs/<username>.jsonl`,
   same shape/location the Python backend used. `validateUsername` is the
   path-traversal guard. Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`)
@@ -94,7 +102,8 @@ pays for sessionless requests — without it they're refused wherever auth is on
 `app.db` + `logs/`), `PORT`, `DEBUG`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`,
 `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` (management API — needed for
 "delete my data" to purge a user's PostHog person; unset => that step no-ops), `LOG_DIR`
-(overrides just the logs subdir). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
+(overrides just the logs subdir), `QUOTA_TIMEZONE` (spend-cap reset zone;
+default `America/Detroit`). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `MINDMAP_OAUTH_CLIENT_ID`, and
 `MINDMAP_OAUTH_REDIRECT_URIS`. For local dev, run `python scripts/get_env.py` to generate

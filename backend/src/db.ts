@@ -129,6 +129,22 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			ALTER TABLE llm_usage ADD COLUMN cache_write_30m_tokens INTEGER NOT NULL DEFAULT 0;
 		`);
 	},
+	// v5 — per-user spend-cap overrides (see quota.ts), edited by hand in SQL for
+	// now. No row → the defaults in quota.ts. A NULL cap column → that window's
+	// default. exempt = 1 → no cap at all (and the only way a signed-in user keeps
+	// realtime voice). No foreign key to `user`, like llm_usage; account deletion
+	// removes the row.
+	(conn) => {
+		conn.exec(`
+			CREATE TABLE user_quota (
+				user_id TEXT PRIMARY KEY,
+				daily_cap_usd REAL,
+				weekly_cap_usd REAL,
+				exempt INTEGER NOT NULL DEFAULT 0,
+				note TEXT
+			);
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

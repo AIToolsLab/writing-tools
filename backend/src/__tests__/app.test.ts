@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import type { Auth } from '../auth.js';
+import { closeDb, db } from '../db.js';
 
 const app = createApp();
 
@@ -52,10 +53,13 @@ function makeAuthApp(
 
 beforeEach(async () => {
 	vi.stubEnv("LOG_DIR", await mkdtemp(path.join(tmpdir(), 'wt-app-')));
+	// Routes that read spend caps (realtime, /api/me/quota) open the app DB.
+	vi.stubEnv('DATA_DIR', await mkdtemp(path.join(tmpdir(), 'wt-app-db-')));
 });
 
 afterEach(() => {
 	// unstub mocks and env are set in vitest.config.ts.
+	closeDb();
 });
 
 describe('GET /api/ping', () => {
@@ -318,9 +322,29 @@ describe('POST /api/openai/realtime/session', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it('mints against the main key for a signed-in user', async () => {
+	it('refuses a signed-in user with a spend cap — voice is unmetered', async () => {
 		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
 		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({
+			id: 'user-1',
+			email: 'writer@calvin.edu',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(403);
+		expect(await res.json()).toMatchObject({
+			error: { code: 'voice_unavailable' },
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('mints against the main key for a signed-in user exempt from caps', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		db().prepare(`INSERT INTO user_quota (user_id, exempt) VALUES ('user-1', 1)`).run();
 		// Allowlisted address — the route enforces the same beta gate as the proxy.
 		const { app: authApp } = makeAuthApp({
 			id: 'user-1',
@@ -356,21 +380,25 @@ describe('POST /api/openai/realtime/session', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it('spends the capped demo key for an anonymous session', async () => {
+	it('refuses demo users, anonymous or sessionless, even with a demo key', async () => {
 		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
 		vi.stubEnv('OPENAI_DEMO_API_KEY', 'sk-demo');
 		const fetchMock = stubUpstream();
-		const { app: authApp } = makeAuthApp({ id: 'anon-1', isAnonymous: true });
 
-		const res = await authApp.request('/api/openai/realtime/session', {
+		const { app: anonApp } = makeAuthApp({ id: 'anon-1', isAnonymous: true });
+		const anonRes = await anonApp.request('/api/openai/realtime/session', {
 			method: 'POST',
 		});
+		expect(anonRes.status).toBe(403);
 
-		expect(res.status).toBe(200);
-		const [, init] = fetchMock.mock.calls[0]!;
-		expect((init.headers as Record<string, string>).Authorization).toBe(
-			'Bearer sk-demo',
+		const { app: sessionlessApp } = makeAuthApp(null);
+		const sessionlessRes = await sessionlessApp.request(
+			'/api/openai/realtime/session',
+			{ method: 'POST' },
 		);
+		expect(sessionlessRes.status).toBe(403);
+
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });
 

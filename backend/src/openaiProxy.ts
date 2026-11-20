@@ -24,6 +24,7 @@ import type { SessionUser } from './auth.js'; // type-only: never runs the auth 
 import { openaiApiKey, openaiDemoApiKey } from './config.js';
 import { captureException } from './posthog.js';
 import { isPricedModel } from './pricing.js';
+import { FALLBACK_MODEL, quotaStatus } from './quota.js';
 import { ANONYMOUS_USER_ID, DEMO_USER_ID, recordUsage } from './usage.js';
 
 const OPENAI_BASE = 'https://api.openai.com/v1';
@@ -48,6 +49,14 @@ export type ProxyIdentity =
 
 export const PLATFORM_AUTH_ERROR_HEADER = 'X-Writing-Tools-Error';
 export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
+/**
+ * The caller's spend-cap state (quota.ts) as of just before this request:
+ * ok | nearing | fallback. Absent for uncapped users. Lets the client show a
+ * heads-up without polling.
+ */
+export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
+/** Set (to the model actually used) when the proxy swapped in the fallback model. */
+export const MODEL_SUBSTITUTED_HEADER = 'X-Writing-Tools-Model-Substituted';
 
 export interface ProxyOptions {
 	resolveIdentity: (c: Context) => Promise<ProxyIdentity>;
@@ -285,6 +294,32 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 			);
 		}
 
+		// Spend cap. Checked before the request, so the request that crosses a
+		// line always completes; see quota.ts for the states.
+		const quota = quotaStatus(attribution.userId);
+		const quotaHeaders: Record<string, string> = {};
+		if (quota.capped) quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
+		if (quota.state === 'blocked') {
+			const retryAfter = Math.max(
+				1,
+				Math.ceil(((quota.resetsAt ?? Date.now()) - Date.now()) / 1000),
+			);
+			return proxyError(
+				c,
+				429,
+				'quota_exceeded',
+				'AI usage limit reached for now.',
+				{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
+			);
+		}
+		let outgoing = parsedBody;
+		let outgoingText = body;
+		if (quota.state === 'fallback' && !asked.startsWith(FALLBACK_MODEL)) {
+			outgoing = { ...parsedBody, model: FALLBACK_MODEL };
+			outgoingText = JSON.stringify(outgoing);
+			quotaHeaders[MODEL_SUBSTITUTED_HEADER] = FALLBACK_MODEL;
+		}
+
 		const startedAt = Date.now();
 
 		const upstream = await fetch(`${OPENAI_BASE}/${endpoint}`, {
@@ -293,7 +328,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 				Authorization: `Bearer ${attribution.apiKey}`,
 				'Content-Type': 'application/json',
 			},
-			body: withUsageReporting(parsedBody, body, endpoint),
+			body: withUsageReporting(outgoing, outgoingText, endpoint),
 		});
 
 		const contentType =
@@ -323,7 +358,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 					clientId,
 					provider: 'openai',
 					endpoint,
-					model: model ?? requestedModel(parsedBody),
+					model: model ?? requestedModel(outgoing),
 					inputTokens: usage?.inputTokens ?? 0,
 					cachedInputTokens: usage?.cachedInputTokens ?? 0,
 					outputTokens: usage?.outputTokens ?? 0,
@@ -358,7 +393,11 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 					`[openai-proxy] ${endpoint}: upstream ${upstream.status} with empty body — returning 502`,
 				);
 				meter(null, null, null);
-				return c.json({ detail: 'Upstream returned an empty response' }, 502);
+				return c.json(
+					{ detail: 'Upstream returned an empty response' },
+					502,
+					quotaHeaders,
+				);
 			}
 			let parsed: unknown = null;
 			try {
@@ -369,7 +408,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 			meter(parseUsage(parsed), parseModel(parsed), null);
 			return new Response(text, {
 				status: upstream.status,
-				headers: { 'Content-Type': contentType },
+				headers: { 'Content-Type': contentType, ...quotaHeaders },
 			});
 		}
 
@@ -412,7 +451,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 
 		return new Response(toClient, {
 			status: upstream.status,
-			headers: { 'Content-Type': contentType },
+			headers: { 'Content-Type': contentType, ...quotaHeaders },
 		});
 	};
 }
@@ -438,9 +477,10 @@ function platformAuthError(
  */
 function proxyError(
 	c: Context,
-	status: 400,
-	code: 'model_not_allowed',
+	status: 400 | 429,
+	code: 'model_not_allowed' | 'quota_exceeded',
 	detail: string,
+	headers: Record<string, string> = {},
 ): Response {
-	return c.json({ error: { code, message: detail }, detail }, status);
+	return c.json({ error: { code, message: detail }, detail }, status, headers);
 }
