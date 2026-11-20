@@ -20,6 +20,7 @@ import { ConsentLevelChooser } from '@/components/ConsentLevelChooser';
 import { useAppAuth } from '@/contexts/appAuthContext';
 import { useConsent } from '@/hooks/useConsent';
 import { DeviceCodePanel } from './DeviceCodePanel';
+import { UsageSection } from './UsageSection';
 import classes from './styles.module.css';
 
 type EraseStatus = 'idle' | 'confirm' | 'working' | 'done' | 'error';
@@ -103,6 +104,8 @@ export function AccountPage() {
 					Signed in as {session.user.email}
 				</p>
 			) : null}
+
+			<UsageSection />
 
 			{/* Logging level */}
 			<section className={classes.section}>

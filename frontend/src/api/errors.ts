@@ -90,6 +90,17 @@ const BY_CODE: Record<string, { message: string; retryable: boolean }> = {
 			'This document is too long to send in one request. Try selecting a smaller part of it and running again.',
 		retryable: false,
 	},
+	// Our own proxy's codes (backend/src/openaiProxy.ts), not the provider's.
+	quota_exceeded: {
+		message:
+			'You’ve reached your AI usage limit for now, so nothing more can be generated until it resets. Your account page shows when that is.',
+		retryable: false,
+	},
+	model_not_allowed: {
+		message:
+			'This asked for an AI model the server doesn’t offer. Please let the team know.',
+		retryable: false,
+	},
 	server_error: {
 		message:
 			'The AI service had an internal error. Please try again in a moment.',

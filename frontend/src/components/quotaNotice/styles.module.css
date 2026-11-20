@@ -1,0 +1,46 @@
+/* Mirrors components/errorNotice; token fallbacks because not every page defines them. */
+.notice {
+	margin: 6px 8px 0;
+	border: 1px solid;
+	border-radius: var(--radius, 10px);
+	padding: 8px 10px;
+	font-size: 13px;
+	line-height: 1.45;
+	text-align: left;
+}
+
+.info {
+	background: var(--surface-2, #f0eee9);
+	border-color: var(--border, rgba(0, 0, 0, 0.08));
+	color: var(--text-secondary, #6b6860);
+}
+
+.error {
+	background: #fdf3f2;
+	border-color: #f0cfcb;
+	color: #7a2e26;
+}
+
+.head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	font-weight: 600;
+	margin-bottom: 2px;
+}
+
+.dismiss {
+	background: transparent;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	font-size: 15px;
+	line-height: 1;
+	padding: 0 2px;
+}
+
+.link {
+	color: inherit;
+	text-decoration: underline;
+}

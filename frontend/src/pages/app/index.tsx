@@ -27,6 +27,7 @@ import { resolvePage } from '../registry';
 import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
+import { QuotaNotice } from '@/components/quotaNotice';
 import { Button } from '@/components/button';
 import '@/theme.css';
 
@@ -367,6 +368,7 @@ function AppInner() {
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
 			<Navbar />
+			<QuotaNotice />
 			<div className="flex-1 flex flex-col overflow-y-auto">
 				{getComponent(page)}
 			</div>
