@@ -9,6 +9,7 @@ import { closeDb, db } from '../db.js';
 import {
 	MODEL_SUBSTITUTED_HEADER,
 	QUOTA_RESETS_HEADER,
+	QUOTA_SCOPE_HEADER,
 	QUOTA_STATE_HEADER,
 } from '../openaiProxy.js';
 import {
@@ -190,6 +191,7 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('ok');
 		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBeNull();
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBeNull();
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBeNull();
 		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
 		expect(sent.model).toBe('gpt-6.2-sol');
@@ -202,6 +204,7 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('fallback');
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBe(FALLBACK_MODEL);
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('user');
 		// Over the daily cap only, so the state lifts at the next daily reset.
 		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBe(
 			new Date(quotaWindows(Date.now()).dayEnd).toISOString(),
@@ -252,6 +255,7 @@ describe('app-wide daily budget ($20)', () => {
 		const res = await proxyRequest(appWithUser(real('fresh')), 'gpt-6.2-sol');
 		expect(res.status).toBe(429);
 		expect(await res.json()).toMatchObject({ error: { code: 'app_quota_exceeded' } });
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('app');
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
@@ -277,6 +281,10 @@ describe('app-wide daily budget ($20)', () => {
 		const fetchMock = stubUpstream();
 		const res = await proxyRequest(appWithUser(real('fresh')), 'gpt-6.2-sol');
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('fallback');
+		expect(res.headers.get(QUOTA_SCOPE_HEADER)).toBe('app');
+		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBe(
+			new Date(quotaWindows(Date.now()).dayEnd).toISOString(),
+		);
 		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
 		expect(sent.model).toBe(FALLBACK_MODEL);
 	});

@@ -55,7 +55,7 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   the request's model for `FALLBACK_MODEL` (gpt-6-luna); at 3× it refuses with 429
   `quota_exceeded`. Admin overrides live in the `user_quota` table (hand-edited SQL;
   `exempt = 1` = no cap). Realtime voice is unmetered, so it's refused for every
-  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` (+ `-Resets`) on
+  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` (+ `-Resets`, `-Scope`) on
   proxy responses and `GET /api/me/quota`, never dollars. An app-wide daily budget
   (`APP_DAILY_CAP_USD`, $20) over all spend, demo included, puts everyone on the
   fallback model past it and refuses everything (429 `app_quota_exceeded`) past

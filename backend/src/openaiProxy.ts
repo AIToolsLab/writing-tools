@@ -61,6 +61,11 @@ export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
  * they can say "until Monday 7:00 AM".
  */
 export const QUOTA_RESETS_HEADER = 'X-Writing-Tools-Quota-Resets';
+/**
+ * Whose limit set a non-`ok` state: `user` (their own caps) or `app` (the app-wide
+ * daily budget), so a client can word its notice. Sent with QUOTA_RESETS_HEADER.
+ */
+export const QUOTA_SCOPE_HEADER = 'X-Writing-Tools-Quota-Scope';
 /** Set (to the model actually used) when the proxy swapped in the fallback model. */
 export const MODEL_SUBSTITUTED_HEADER = 'X-Writing-Tools-Model-Substituted';
 
@@ -352,8 +357,11 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		if (quota.capped || quota.state !== 'ok') {
 			quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
 		}
-		if (quota.state !== 'ok' && quota.resetsAt !== null) {
-			quotaHeaders[QUOTA_RESETS_HEADER] = new Date(quota.resetsAt).toISOString();
+		if (quota.state !== 'ok') {
+			quotaHeaders[QUOTA_SCOPE_HEADER] = quota.scope;
+			if (quota.resetsAt !== null) {
+				quotaHeaders[QUOTA_RESETS_HEADER] = new Date(quota.resetsAt).toISOString();
+			}
 		}
 		if (quota.state === 'blocked') {
 			const retryAfter = Math.max(

@@ -118,8 +118,11 @@ is one `headers.get()` and a client can ignore any it doesn't know:
   of just *before* this request. `nearing` is ≥ 80% of a cap; `fallback` means
   this request was served on a cheaper model. Absent for uncapped (exempt) users
   unless the app-wide daily budget is in `fallback` or `blocked`, which applies to
-  everyone. The header doesn't say whether the user's own cap or the app-wide
-  budget set the state.
+  everyone.
+- `X-Writing-Tools-Quota-Scope: user | app`: whose limit set the state, so the
+  client can say "you've used…" or "AI use across the app…". Sent whenever the
+  state isn't `ok`. `nearing` is always `user`; on a tie the user's own cap is
+  reported, since it may last longer.
 - `X-Writing-Tools-Quota-Resets: <ISO 8601 time>`: when the current state lifts.
   Sent whenever the state isn't `ok` (and on the 429s, alongside `Retry-After`).
   If both the daily and weekly caps are in that state, it's the later of the two
