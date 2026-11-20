@@ -18,7 +18,7 @@ import { DEMO_USER_ID, recordUsage } from '../usage.js';
 const TZ = 'America/Detroit';
 const iso = (ms: number) => new Date(ms).toISOString();
 
-/** Spend `usd` for `userId` now, as gpt-5.6-terra output tokens ($15 / 1M). */
+/** Spend `usd` for `userId` now, as gpt-5.6-terra output tokens ($12 / 1M). */
 function spend(userId: string, usd: number, model = 'gpt-5.6-terra'): void {
 	recordUsage({
 		userId,
@@ -28,7 +28,7 @@ function spend(userId: string, usd: number, model = 'gpt-5.6-terra'): void {
 		model,
 		inputTokens: 0,
 		cachedInputTokens: 0,
-		outputTokens: Math.round((usd / 15) * 1_000_000),
+		outputTokens: Math.round((usd / 12) * 1_000_000),
 		reasoningTokens: 0,
 		status: 200,
 		streamed: true,
@@ -156,16 +156,16 @@ describe('quotaStatus', () => {
 			provider: 'openai',
 			endpoint: 'responses',
 			model: 'some-retired-model',
-			inputTokens: 20_000,
+			inputTokens: 25_000,
 			cachedInputTokens: 0,
-			outputTokens: 20_000,
+			outputTokens: 25_000,
 			reasoningTokens: 0,
 			status: 200,
 			streamed: false,
 			durationMs: 1,
 			ttftMs: null,
 		});
-		// 40k tokens at the most expensive output rate ($15/1M) = $0.60: over the day's $0.50.
+		// 50k tokens at the most expensive output rate (terra's $12/1M) = $0.60: over the day's $0.50.
 		expect(quotaStatus('u').state).toBe('fallback');
 	});
 
