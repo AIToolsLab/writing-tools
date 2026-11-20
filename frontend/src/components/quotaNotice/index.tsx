@@ -10,6 +10,9 @@
  *   fallback → responses now come from a smaller model, until the reset
  *   blocked  → nothing more until the reset (generation also fails with the
  *              quota_exceeded copy in api/errors.ts; this says when it lifts)
+ *
+ * When the app-wide daily budget is what's biting (`scope: 'app'`), the wording
+ * says so: the writer didn't use anything up.
  */
 import { useEffect, useState } from 'react';
 import { SERVER_URL } from '@/api';
@@ -35,8 +38,14 @@ export function quotaNoticeMessage(
 	state: Exclude<QuotaState, 'ok'>,
 	status: QuotaStatus | null,
 ): string {
-	const busiest = status ? busiestWindow(status) : null;
 	const until = status?.resetsAt ? ` until ${formatReset(status.resetsAt)}` : '';
+	// The app-wide daily budget, not the writer's own (it has no "nearing" state).
+	if (status?.scope === 'app') {
+		return state === 'blocked'
+			? `AI use across the app has hit today’s budget, so AI features are paused for everyone${until}.`
+			: `AI use across the app is high today, so everyone’s responses come from a smaller, more limited model${until}.`;
+	}
+	const busiest = status ? busiestWindow(status) : null;
 	const allowance = busiest
 		? `${busiest.label === 'today' ? 'today’s' : 'this week’s'} AI allowance`
 		: 'your AI allowance';

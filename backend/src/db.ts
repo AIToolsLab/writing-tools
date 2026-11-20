@@ -145,6 +145,20 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			);
 		`);
 	},
+	// v6 — app-wide daily budget (quota.ts appSpend) sums every row since the
+	// day's reset on each proxied request. Covering index: the time range plus every
+	// column that query reads, so it never touches the table. (A plain ts index is
+	// ~2× slower at volume, and slower than a full scan past ~100k rows/day, from
+	// the per-row table lookups.) If the cost calculation starts reading another
+	// column, add it here or the query silently falls back to table lookups.
+	(conn) => {
+		conn.exec(`
+			CREATE INDEX llm_usage_ts_cost ON llm_usage (
+				ts, model, input_tokens, cached_input_tokens, output_tokens,
+				cache_write_tokens, cache_write_30m_tokens
+			);
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

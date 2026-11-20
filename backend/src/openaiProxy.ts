@@ -51,8 +51,8 @@ export const PLATFORM_AUTH_ERROR_HEADER = 'X-Writing-Tools-Error';
 export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
 /**
  * The caller's spend-cap state (quota.ts) as of just before this request:
- * ok | nearing | fallback. Absent for uncapped users. Lets the client show a
- * heads-up without polling.
+ * ok | nearing | fallback | blocked. Absent for uncapped users while the app-wide
+ * budget is fine. Lets the client show a heads-up without polling.
  */
 export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
 /** Set (to the model actually used) when the proxy swapped in the fallback model. */
@@ -298,19 +298,31 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		// line always completes; see quota.ts for the states.
 		const quota = quotaStatus(attribution.userId);
 		const quotaHeaders: Record<string, string> = {};
-		if (quota.capped) quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
+		// Uncapped users get the header too once the app-wide budget is biting.
+		if (quota.capped || quota.state !== 'ok') {
+			quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
+		}
 		if (quota.state === 'blocked') {
 			const retryAfter = Math.max(
 				1,
 				Math.ceil(((quota.resetsAt ?? Date.now()) - Date.now()) / 1000),
 			);
-			return proxyError(
-				c,
-				429,
-				'quota_exceeded',
-				'AI usage limit reached for now.',
-				{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
-			);
+			// Distinct codes so the client can say whose limit it is.
+			return quota.scope === 'app'
+				? proxyError(
+						c,
+						429,
+						'app_quota_exceeded',
+						'The app-wide AI budget for today is used up.',
+						{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
+					)
+				: proxyError(
+						c,
+						429,
+						'quota_exceeded',
+						'AI usage limit reached for now.',
+						{ ...quotaHeaders, 'Retry-After': String(retryAfter) },
+					);
 		}
 		let outgoing = parsedBody;
 		let outgoingText = body;
@@ -478,7 +490,7 @@ function platformAuthError(
 function proxyError(
 	c: Context,
 	status: 400 | 429,
-	code: 'model_not_allowed' | 'quota_exceeded',
+	code: 'model_not_allowed' | 'quota_exceeded' | 'app_quota_exceeded',
 	detail: string,
 	headers: Record<string, string> = {},
 ): Response {

@@ -15,6 +15,7 @@ import { quotaNoticeMessage } from '@/components/quotaNotice';
 const status = (daily: number, weekly: number): QuotaStatus => ({
 	capped: true,
 	state: 'nearing',
+	scope: 'user',
 	daily: { percentUsed: daily, resetsAt: '2026-11-21T12:00:00.000Z' },
 	weekly: { percentUsed: weekly, resetsAt: '2026-11-23T12:00:00.000Z' },
 	resetsAt: '2026-11-23T12:00:00.000Z',
@@ -95,6 +96,13 @@ describe('quotaNoticeMessage', () => {
 
 	it('still says something useful before the detail has loaded', () => {
 		expect(quotaNoticeMessage('fallback', null)).toMatch(/smaller/);
+	});
+
+	it('says when it is the app-wide budget, not the writer’s own', () => {
+		const appWide: QuotaStatus = { ...status(10, 20), state: 'fallback', scope: 'app' };
+		const message = quotaNoticeMessage('fallback', appWide);
+		expect(message).toMatch(/across the app/);
+		expect(message).not.toMatch(/You’ve used/);
 	});
 
 	it('never mentions dollars', () => {

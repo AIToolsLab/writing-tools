@@ -25,6 +25,8 @@ export interface QuotaStatus {
 	/** False when the account has no cap (exempt, or a dev server with auth off). */
 	capped: boolean;
 	state: QuotaState;
+	/** Whose limit set `state`: the writer's own, or the app-wide daily budget. */
+	scope: 'user' | 'app';
 	daily: QuotaWindow | null;
 	weekly: QuotaWindow | null;
 	/** When the current state lifts; null when uncapped. */
@@ -87,6 +89,7 @@ export function parseQuotaStatus(data: unknown): QuotaStatus {
 	return {
 		capped: d.capped,
 		state: d.state,
+		scope: d.scope === 'app' ? 'app' : 'user',
 		daily: parseWindow(d.daily),
 		weekly: parseWindow(d.weekly),
 		resetsAt: typeof d.resetsAt === 'string' ? d.resetsAt : null,

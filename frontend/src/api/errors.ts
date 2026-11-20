@@ -96,6 +96,11 @@ const BY_CODE: Record<string, { message: string; retryable: boolean }> = {
 			'You’ve reached your AI usage limit for now, so nothing more can be generated until it resets. Your account page shows when that is.',
 		retryable: false,
 	},
+	app_quota_exceeded: {
+		message:
+			'AI use across the whole app has hit today’s budget, so AI features are paused for everyone until tomorrow morning. This isn’t about your own usage.',
+		retryable: false,
+	},
 	model_not_allowed: {
 		message:
 			'This asked for an AI model the server doesn’t offer. Please let the team know.',
