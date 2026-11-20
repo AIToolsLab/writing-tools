@@ -55,6 +55,12 @@ export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
  * budget is fine. Lets the client show a heads-up without polling.
  */
 export const QUOTA_STATE_HEADER = 'X-Writing-Tools-Quota';
+/**
+ * When the quota state lifts (ISO 8601), sent alongside QUOTA_STATE_HEADER whenever
+ * that isn't `ok`. External clients can't call GET /api/me/quota, so this is how
+ * they can say "until Monday 7:00 AM".
+ */
+export const QUOTA_RESETS_HEADER = 'X-Writing-Tools-Quota-Resets';
 /** Set (to the model actually used) when the proxy swapped in the fallback model. */
 export const MODEL_SUBSTITUTED_HEADER = 'X-Writing-Tools-Model-Substituted';
 
@@ -345,6 +351,9 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		// Uncapped users get the header too once the app-wide budget is biting.
 		if (quota.capped || quota.state !== 'ok') {
 			quotaHeaders[QUOTA_STATE_HEADER] = quota.state;
+		}
+		if (quota.state !== 'ok' && quota.resetsAt !== null) {
+			quotaHeaders[QUOTA_RESETS_HEADER] = new Date(quota.resetsAt).toISOString();
 		}
 		if (quota.state === 'blocked') {
 			const retryAfter = Math.max(
