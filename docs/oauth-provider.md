@@ -110,11 +110,16 @@ again".
 The user's spend cap covers all their proxied use, whichever client it came
 from: Mindmap and the add-in draw on the same daily and weekly allowance.
 Responses relayed from OpenAI (including its errors) for a capped user carry
-two headers (CORS-exposed):
+these headers (CORS-exposed). They are separate headers with plain values, so each
+is one `headers.get()` and a client can ignore any it doesn't know:
 
 - `X-Writing-Tools-Quota: ok | nearing | fallback | blocked`: the user's state as
   of just *before* this request. `nearing` is ≥ 80% of a cap; `fallback` means
   this request was served on a cheaper model. Absent for uncapped (exempt) users.
+- `X-Writing-Tools-Quota-Resets: <ISO 8601 time>`: when the current state lifts.
+  Sent whenever the state isn't `ok` (and on the `quota_exceeded` 429, alongside
+  `Retry-After`). If both the daily and weekly caps are in that state, it's the
+  later of the two resets.
 - `X-Writing-Tools-Model-Substituted: <model>`: present when the proxy replaced
   the requested `model` with the fallback model. The response is otherwise
   normal; only `model` in the body was changed, so a parameter the fallback model

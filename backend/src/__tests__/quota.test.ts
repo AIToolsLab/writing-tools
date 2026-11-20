@@ -6,7 +6,11 @@ import { createApp } from '../app.js';
 import type { Auth, SessionUser } from '../auth.js';
 import { CONSENT_LEVELS } from '../consent.js';
 import { closeDb, db } from '../db.js';
-import { MODEL_SUBSTITUTED_HEADER, QUOTA_STATE_HEADER } from '../openaiProxy.js';
+import {
+	MODEL_SUBSTITUTED_HEADER,
+	QUOTA_RESETS_HEADER,
+	QUOTA_STATE_HEADER,
+} from '../openaiProxy.js';
 import {
 	FALLBACK_MODEL,
 	publicStatus,
@@ -184,6 +188,7 @@ describe('proxy enforcement', () => {
 		const res = await proxyRequest(appWithUser(real('u')), 'gpt-6.2-sol');
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('ok');
+		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBeNull();
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBeNull();
 		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
 		expect(sent.model).toBe('gpt-6.2-sol');
@@ -196,6 +201,10 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get(QUOTA_STATE_HEADER)).toBe('fallback');
 		expect(res.headers.get(MODEL_SUBSTITUTED_HEADER)).toBe(FALLBACK_MODEL);
+		// Over the daily cap only, so the state lifts at the next daily reset.
+		expect(res.headers.get(QUOTA_RESETS_HEADER)).toBe(
+			new Date(quotaWindows(Date.now()).dayEnd).toISOString(),
+		);
 		const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
 		expect(sent.model).toBe(FALLBACK_MODEL);
 		expect(sent.input).toBe('hi'); // the rest of the request is untouched
@@ -208,6 +217,9 @@ describe('proxy enforcement', () => {
 		expect(res.status).toBe(429);
 		expect(await res.json()).toMatchObject({ error: { code: 'quota_exceeded' } });
 		expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+		expect(Date.parse(String(res.headers.get(QUOTA_RESETS_HEADER)))).toBeGreaterThan(
+			Date.now(),
+		);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });

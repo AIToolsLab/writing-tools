@@ -55,7 +55,7 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   the request's model for `FALLBACK_MODEL` (gpt-6-luna); at 3× it refuses with 429
   `quota_exceeded`. Admin overrides live in the `user_quota` table (hand-edited SQL;
   `exempt = 1` = no cap). Realtime voice is unmetered, so it's refused for every
-  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` on
+  capped or demo user. Clients see percentages only, via `X-Writing-Tools-Quota` (+ `-Resets`) on
   proxy responses and `GET /api/me/quota`, never dollars.
 - **Logging** (`src/logging.ts`): structured JSONL to `backend/logs/<username>.jsonl`,
   same shape/location the Python backend used. `validateUsername` is the
