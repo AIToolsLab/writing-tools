@@ -32,8 +32,11 @@ Account deletion removes the row.
 ## How the client learns its state
 
 Each proxied response for a capped user carries `X-Writing-Tools-Quota:
-ok|nearing|fallback|blocked` (the state as of just *before* that request), and
-`X-Writing-Tools-Model-Substituted: gpt-6-luna` when the model was swapped.
+ok|nearing|fallback|blocked` (the state as of just *before* that request),
+`X-Writing-Tools-Quota-Resets: <ISO time>` when that state isn't `ok`, and
+`X-Writing-Tools-Model-Substituted: gpt-6-luna` when the model was swapped. The
+reset header exists for external clients, which can't call `GET /api/me/quota`
+(see `docs/oauth-provider.md`, "Client contract").
 `authorizedFetch` feeds the header to a small store (`frontend/src/api/quota.ts`).
 When the state changes, the taskpane notice fetches `GET /api/me/quota` for the
 percentages and reset time.

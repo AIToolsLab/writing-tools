@@ -23,6 +23,7 @@ import {
 	MODEL_SUBSTITUTED_HEADER,
 	openaiProxy,
 	PLATFORM_AUTH_ERROR_HEADER,
+	QUOTA_RESETS_HEADER,
 	QUOTA_STATE_HEADER,
 	type ProxyIdentity,
 	type ProxyUser,
@@ -101,6 +102,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			exposeHeaders: [
 				PLATFORM_AUTH_ERROR_HEADER,
 				QUOTA_STATE_HEADER,
+				QUOTA_RESETS_HEADER,
 				MODEL_SUBSTITUTED_HEADER,
 				'Retry-After',
 			],
