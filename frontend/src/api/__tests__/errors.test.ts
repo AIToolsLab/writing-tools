@@ -56,6 +56,28 @@ describe('describeGenerationError', () => {
 		expect(info.retryable).toBe(true);
 	});
 
+	it("reads our proxy's quota_exceeded as final, not as a rate limit", () => {
+		// The proxy's own 429 (backend/src/openaiProxy.ts proxyError). Without the
+		// code mapping the 429 status would read as "busy, try again in a few
+		// seconds" — wrong for a limit that lifts hours later.
+		const info = describeGenerationError(
+			apiCallError({
+				statusCode: 429,
+				responseBody: JSON.stringify({
+					error: {
+						code: 'quota_exceeded',
+						message: 'AI usage limit reached for now.',
+					},
+					detail: 'AI usage limit reached for now.',
+				}),
+			}),
+		);
+
+		expect(info.code).toBe('quota_exceeded');
+		expect(info.message).toMatch(/usage limit/i);
+		expect(info.retryable).toBe(false);
+	});
+
 	it('falls back to the HTTP status when no code is reported', () => {
 		const info = describeGenerationError(
 			apiCallError({ statusCode: 401, responseBody: 'Unauthorized' }),

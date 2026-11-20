@@ -4,6 +4,7 @@ import {
 } from '@ai-sdk/openai';
 import { DEVICE_CLIENT_ID } from './deviceAuth';
 import { SERVER_URL } from './index';
+import { noteQuotaHeader } from './quota';
 
 /**
  * The backend proxy authenticates every model request and meters its token usage
@@ -45,7 +46,10 @@ export async function authorizedFetch(
 	} catch {
 		// Not signed in — send it unauthenticated and let the proxy reject it.
 	}
-	return fetch(input, { ...init, headers });
+	const res = await fetch(input, { ...init, headers });
+	// Model responses report the spend-cap state; let the taskpane notice see it.
+	noteQuotaHeader(res);
+	return res;
 }
 
 export const openai = createOpenAI({
