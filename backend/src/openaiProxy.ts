@@ -255,6 +255,15 @@ function refusedServiceTier(parsed: Record<string, unknown> | null): string | nu
 	return String(tier);
 }
 
+/**
+ * Background mode (Responses API) answers at once with a queued response that has
+ * no usage; the work, and the spend, happen later, out of the proxy's sight. The
+ * proxy can't meter that, so it refuses it.
+ */
+function wantsBackground(parsed: Record<string, unknown> | null): boolean {
+	return parsed?.background === true;
+}
+
 function requestedModel(parsed: Record<string, unknown> | null): string {
 	const model = parsed?.model;
 	return typeof model === 'string' ? model : 'unknown';
@@ -309,6 +318,14 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 				400,
 				'service_tier_not_allowed',
 				`Service tier "${tier}" is not available through this server.`,
+			);
+		}
+		if (wantsBackground(parsedBody)) {
+			return proxyError(
+				c,
+				400,
+				'background_not_allowed',
+				'Background mode is not available through this server.',
 			);
 		}
 
@@ -466,7 +483,7 @@ function platformAuthError(
 function proxyError(
 	c: Context,
 	status: 400,
-	code: 'model_not_allowed' | 'service_tier_not_allowed',
+	code: 'model_not_allowed' | 'service_tier_not_allowed' | 'background_not_allowed',
 	detail: string,
 ): Response {
 	return c.json({ error: { code, message: detail }, detail }, status);

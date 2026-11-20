@@ -670,6 +670,20 @@ describe('model allowlist', () => {
 		}
 	});
 
+	it('refuses background mode, whose spend the proxy never sees', async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		const res = await appWithUser(real('usr-1')).request('/api/openai/responses', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ model: 'gpt-5.6-terra', input: 'hi', background: true }),
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: { code: 'background_not_allowed' } });
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it('refuses a body with no model at all', async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal('fetch', fetchMock);

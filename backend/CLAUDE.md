@@ -41,7 +41,10 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   (gated by `LOG_SECRET`) breaks spend down by user; dollars are computed at read time
   from the hand-maintained rate table in `pricing.ts`, so **an unlisted model reports
   `cost: null` until you add its rates**. The proxy refuses (400 `model_not_allowed`)
-  any *requested* model with no rate, so spend through it can always be counted.
+  any *requested* model with no rate, so spend through it can always be counted. For
+  the same reason it refuses `service_tier` values priced above Standard (the table
+  holds Standard rates) and Responses `background: true` (usage arrives later,
+  unseen).
   GPT-5.6+ models also charge for cache writes, recorded in `cache_write_tokens`
   (and the `cache_write_30m_tokens` part; the rest is priced at the 12-hour rate).
   Account deletion anonymizes these rows rather than dropping them (see
