@@ -10,8 +10,11 @@
  * so switching models makes the gap visible in the summary instead of quietly
  * under-reporting spend.
  *
- * Last verified: 2026-07-13 (gpt-4o*, gpt-5.6-terra); gpt-6-luna and gpt-6.2-sol
- * added 2026-11-20 from the rates on OpenAI's pricing page.
+ * Last verified: 2026-11-20, Standard tier, short context (≤272K input tokens).
+ * gpt-5.6-terra was previously listed at gpt-5.4's rates ($2.50/$0.25/$15.00).
+ * The proxy refuses non-Standard service tiers (see openaiProxy.ts), since these
+ * rates would under-count them. Long-context requests (>272K input tokens) cost
+ * about 2× and are NOT yet priced as such.
  *
  * This table is also the proxy's model allowlist (see isPricedModel): a request
  * for a model with no rate here is refused, so every dollar spent through the
@@ -37,7 +40,13 @@ interface Rate {
 const RATES: Record<string, Rate> = {
 	'gpt-4o': { input: 2.5, cachedInput: 1.25, output: 10.0 },
 	'gpt-4o-mini': { input: 0.15, cachedInput: 0.075, output: 0.6 },
-	'gpt-5.6-terra': { input: 2.5, cachedInput: 0.25, output: 15.0 },
+	'gpt-5.6-terra': {
+		input: 2.0,
+		cachedInput: 0.2,
+		output: 12.0,
+		cacheWrite30m: 2.5,
+		cacheWrite12h: 5.0,
+	},
 	'gpt-6-luna': {
 		input: 0.1,
 		cachedInput: 0.01,
