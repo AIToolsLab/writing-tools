@@ -139,6 +139,8 @@ describe('parseUsage', () => {
 			cachedInputTokens: 100,
 			outputTokens: 30,
 			reasoningTokens: 8,
+			cacheWriteTokens: 0,
+			cacheWrite30mTokens: 0,
 		});
 	});
 
@@ -160,6 +162,8 @@ describe('parseUsage', () => {
 			cachedInputTokens: 3,
 			outputTokens: 2,
 			reasoningTokens: 1,
+			cacheWriteTokens: 0,
+			cacheWrite30mTokens: 0,
 		});
 	});
 
@@ -182,6 +186,8 @@ describe('createSseUsageScanner', () => {
 			cachedInputTokens: 100,
 			outputTokens: 30,
 			reasoningTokens: 8,
+			cacheWriteTokens: 0,
+			cacheWrite30mTokens: 0,
 		});
 		// The served snapshot, not the alias the client asked for.
 		expect(model).toBe('gpt-4o-2024-08-06');
@@ -443,6 +449,8 @@ describe('POST /api/openai/chat/completions', () => {
 			cachedInputTokens: 100,
 			outputTokens: 30,
 			reasoningTokens: 8,
+			cacheWriteTokens: 0,
+			cacheWrite30mTokens: 0,
 		});
 	});
 
@@ -608,6 +616,35 @@ describe('POST /api/openai/chat/completions', () => {
 	});
 });
 
+describe('model allowlist', () => {
+	it('refuses a model with no rate, without calling upstream', async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		const res = await appWithUser(real('usr-1')).request('/api/openai/responses', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ model: 'gpt-9-ultra', input: 'hi' }),
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: { code: 'model_not_allowed' } });
+		// Not a credential problem: external clients must not read it as one.
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('refuses a body with no model at all', async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		const res = await appWithUser(real('usr-1')).request('/api/openai/responses', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: 'not json',
+		});
+		expect(res.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
 describe('POST /api/openai/responses', () => {
 	it('proxies to the responses endpoint and meters usage to the session user', async () => {
 		const body = {
@@ -719,12 +756,15 @@ describe('GET /api/usage_summary', () => {
 					),
 			),
 		);
+		// The request names a priced model (the proxy refuses anything else), but
+		// the upstream reports serving one we have no rate for — an alias that
+		// resolved somewhere new.
 		const proxied = await appWithUser(real('usr-1')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ model: 'gpt-6-turbo' }),
+				body: JSON.stringify({ model: 'gpt-4o' }),
 			},
 		);
 		await proxied.json();
