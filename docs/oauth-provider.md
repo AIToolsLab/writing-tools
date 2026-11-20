@@ -83,6 +83,52 @@ fetch a session JWT from `GET /api/auth/token`, signed with the same keys. The
 proxy rejects those: their issuer is the bare origin rather than
 `<origin>/api/auth`, and they carry no `openai:chat` scope or trusted `azp`.
 
+## Client contract (what Mindmap can rely on)
+
+Requests to the two proxy endpoints are OpenAI request bodies, forwarded to
+OpenAI with the server's key; successful responses (and OpenAI's own errors) come
+back unchanged, streamed or not. Usage is metered to the token's user.
+
+The proxy refuses some requests itself, before calling OpenAI. Its errors use
+OpenAI's envelope, so OpenAI SDKs surface the code:
+`{ "error": { "code": "<code>", "message": "…" }, "detail": "…" }`.
+
+| Status | `error.code` | Meaning | Client should |
+|---|---|---|---|
+| 401 | — (header `X-Writing-Tools-Error: platform-auth`) | Token invalid, expired, or its Thoughtful session ended | Sign in again |
+| 400 | `model_not_allowed` | `model` isn't in the server's rate table (`backend/src/pricing.ts`; dated snapshots of a listed model are allowed) | Use a listed model; not retryable |
+| 400 | `service_tier_not_allowed` | `service_tier` is `fast`, `priority`, `ultrafast` or `scale` (costs more than the Standard rates the server prices at). `auto`, `default`, `flex` and omitting it are fine | Drop the parameter; not retryable |
+| 400 | `background_not_allowed` | Responses `background: true` (its usage arrives later, where the server can't meter it) | Don't use background mode |
+
+| 429 | `quota_exceeded` | The user is past the hard limit of their spend cap (see `docs/llm-quota.md`). Has `Retry-After` (seconds until the window resets) | Stop sending; tell the user when it resets |
+| 429 | `app_quota_exceeded` | The app-wide daily budget is past its hard limit, for every user. Has `Retry-After` | Same, but say it's the app's limit, not the user's |
+
+Only the 401 carries the platform-auth header: no other error means "sign in
+again".
+
+### Spend-cap signals
+
+The user's spend cap covers all their proxied use, whichever client it came
+from: Mindmap and the add-in draw on the same daily and weekly allowance.
+Responses relayed from OpenAI (including its errors) for a capped user carry
+two headers (CORS-exposed):
+
+- `X-Writing-Tools-Quota: ok | nearing | fallback | blocked`: the user's state as
+  of just *before* this request. `nearing` is ≥ 80% of a cap; `fallback` means
+  this request was served on a cheaper model. Absent for uncapped (exempt) users
+  unless the app-wide daily budget is in `fallback` or `blocked`, which applies to
+  everyone. The header doesn't say whether the user's own cap or the app-wide
+  budget set the state.
+- `X-Writing-Tools-Model-Substituted: <model>`: present when the proxy replaced
+  the requested `model` with the fallback model. The response is otherwise
+  normal; only `model` in the body was changed, so a parameter the fallback model
+  doesn't support can make the request fail.
+
+`GET /api/me/quota` (percentages and reset times) is **not** available to OAuth
+tokens: it authenticates through the shared `resolveUser` helper, which this
+scope is kept out of (see Authorization boundary). The headers above are the
+whole interface for external clients.
+
 ## Provisioning and deployment
 
 `MINDMAP_OAUTH_CLIENT_ID` and `MINDMAP_OAUTH_REDIRECT_URIS` configure the fixed
