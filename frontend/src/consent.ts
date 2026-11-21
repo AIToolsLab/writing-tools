@@ -48,7 +48,7 @@ export const CONSENT_LEVEL_LABELS: Record<
 	ai_output: {
 		title: 'Usage + AI suggestions',
 		description:
-			'Also stores the suggestions the assistant shows you. Your document text itself is still not stored.',
+			'Also stores the suggestions the assistant shows you. Suggestions may quote passages from your writing, but your document as a whole is not stored.',
 	},
 	document: {
 		title: 'Full study logging',
