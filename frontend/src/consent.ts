@@ -57,47 +57,61 @@ export const CONSENT_LEVEL_LABELS: Record<
 	},
 };
 
-// Payload keys carrying content above the `usage` tier (must match backend
-// KEY_MIN_LEVEL). `prompt`/`docContext`/`message`/`target` are user/document
-// text; `result`/`generation`/`response` are AI output. Anything else is
-// usage-level metadata.
-const KEY_MIN_LEVEL: Record<string, ConsentLevel> = {
-	prompt: 'document',
-	docContext: 'document',
-	message: 'document', // chat: the user's typed message
-	target: 'document', // revise: a verbatim document quote from a clicked reference
-	proposal: 'document', // chat: a proposed edit op (quotes the document)
-	offending: 'document', // chat: words a proposed edit added that weren't the writer's
-	result: 'ai_output',
-	generation: 'ai_output',
-	response: 'ai_output', // revise: the AI-generated visualization text
-};
+/**
+ * A log event's payload is split into buckets named after the lowest consent
+ * level allowed to store them (mirrors backend `src/consent.ts`, which
+ * re-applies the rule authoritatively). Each event helper in
+ * `@/api/logging` declares which bucket every field goes in.
+ *
+ * `usage` is typed to primitives and arrays of primitives, so an object such as
+ * a DocContext can't be put there by accident — the server drops nested values
+ * from `usage` too. Free-text strings still type-check in `usage`; keeping
+ * those out is a review rule (see `docs/reviewing.md`).
+ */
+export type UsagePrimitive = string | number | boolean | null;
+
+export type UsageData = Record<
+	string,
+	UsagePrimitive | readonly UsagePrimitive[] | undefined
+>;
+
+export interface LogBuckets {
+	/** Counts, timings, modes, ids: never text the writer or the model wrote. */
+	usage?: UsageData;
+	/** What the assistant showed the writer. May quote the writer's text. */
+	ai_output?: Record<string, unknown>;
+	/** Anything the writer wrote: document text, messages, the brief, quotes. */
+	document?: Record<string, unknown>;
+}
+
+const BUCKETS = ['usage', 'ai_output', 'document'] as const;
 
 export interface ConsentFilterResult {
 	/** false => don't send the event at all (level `none`). */
 	allowed: boolean;
-	payload: Record<string, unknown>;
+	buckets: LogBuckets;
 }
 
 /**
- * Strip a log payload to what the given consent level permits. At `none` the
- * event is dropped; otherwise content keys above the level are removed.
+ * Strip a log payload's buckets to what the given consent level permits. At
+ * `none` the event is dropped; otherwise buckets above the level are removed.
  */
-export function filterPayloadForConsent(
-	payload: Record<string, unknown>,
+export function filterBucketsForConsent(
+	buckets: LogBuckets,
 	level: ConsentLevel,
 ): ConsentFilterResult {
 	if (level === 'none') {
-		return { allowed: false, payload: {} };
+		return { allowed: false, buckets: {} };
 	}
 	const rank = consentRank(level);
-	const kept: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(payload)) {
-		const min = KEY_MIN_LEVEL[key];
-		if (min && consentRank(min) > rank) continue;
-		kept[key] = value;
+	const kept: LogBuckets = {};
+	for (const bucket of BUCKETS) {
+		const value = buckets[bucket];
+		if (value === undefined || consentRank(bucket) > rank) continue;
+		// Assigning through a widened view; each key keeps its own type.
+		(kept as Record<string, unknown>)[bucket] = value;
 	}
-	return { allowed: true, payload: kept };
+	return { allowed: true, buckets: kept };
 }
 
 /**

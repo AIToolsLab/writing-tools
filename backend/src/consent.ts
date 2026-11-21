@@ -43,57 +43,92 @@ export function consentRank(level: ConsentLevel): number {
 }
 
 /**
- * Payload keys that carry content above the `usage` tier, mapped to the minimum
- * level required to log them. Anything NOT listed is treated as usage-level
- * metadata (event name, generation_type, error codes, counts, client_timestamp).
+ * A log event's payload is split into buckets named after the lowest consent
+ * level allowed to store them. The writer of each event declares, field by
+ * field, which bucket it belongs in (frontend `src/api/logging.ts`), so a
+ * consent decision is made where the data is logged instead of depending on
+ * a list of content-bearing key names that someone has to remember to update.
  *
- * Keys here match what the pages send (see frontend src/api/logging.ts):
- *   - `prompt` / `docContext`     → DocContext (raw document text)   → `document`
- *   - `message` / `target`        → user text / a quoted doc snippet → `document`
- *   - `result` / `generation`     → the AI output we displayed       → `ai_output`
- *   - `response`                  → AI visualization text (Revise)   → `ai_output`
+ *   - `usage`     — counts, timings, modes, ids. Values must be primitives or
+ *                   arrays of primitives; anything nested is dropped, because a
+ *                   nested object is where a DocContext would hide.
+ *   - `ai_output` — what the assistant showed the writer. May quote the
+ *                   writer's text (doctext citations), which the consent copy
+ *                   for that level says.
+ *   - `document`  — anything the writer wrote: document text, chat messages,
+ *                   the brief, quoted spans, proposed edits.
+ *
+ * The gate is default-closed: a top-level key that is not part of the envelope
+ * and not a bucket is dropped at every level, and its name is reported back so
+ * a missing metric is visible rather than silent. A dropped field is a lost
+ * metric; an unclassified field that ships is a broken promise.
  */
-const KEY_MIN_LEVEL: Record<string, ConsentLevel> = {
-	prompt: 'document',
-	docContext: 'document',
-	message: 'document',
-	target: 'document',
-	result: 'ai_output',
-	generation: 'ai_output',
-	response: 'ai_output',
-};
+export const LOG_BUCKETS = ['usage', 'ai_output', 'document'] as const;
+
+export type LogBucket = (typeof LOG_BUCKETS)[number];
+
+export type LogBuckets = Partial<Record<LogBucket, Record<string, unknown>>>;
+
+function isLogBucket(key: string): key is LogBucket {
+	return (LOG_BUCKETS as readonly string[]).includes(key);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUsageValue(value: unknown): boolean {
+	const primitive = (v: unknown) =>
+		v === null || ['string', 'number', 'boolean'].includes(typeof v);
+	return primitive(value) || (Array.isArray(value) && value.every(primitive));
+}
 
 export interface ConsentFilterResult {
 	/** false => drop the whole event (level `none`). */
 	allowed: boolean;
-	/** The payload with above-level keys removed. */
-	extraData: Record<string, unknown>;
-	/** Keys removed because they exceeded the user's level (for diagnostics). */
-	strippedKeys: string[];
+	/** The buckets the user's level permits, with usage values checked. */
+	buckets: LogBuckets;
+	/**
+	 * Fields dropped because nobody classified them (an unknown top-level key,
+	 * a bucket that isn't an object, a nested value in `usage`) — as
+	 * `key` or `bucket.key`. Not the buckets stripped for being above the
+	 * user's level: that is consent working, not a mistake.
+	 */
+	unclassified: string[];
 }
 
 /**
- * Apply a consent level to a log payload's `extra_data`. At `none` the whole
- * event is dropped; otherwise content keys above the user's level are stripped.
+ * Apply a consent level to a log payload (the envelope fields already
+ * removed). At `none` the event is dropped; otherwise buckets above the level
+ * are removed and anything outside a bucket is dropped.
  */
-export function filterExtraDataForConsent(
-	extraData: Record<string, unknown>,
+export function filterLogPayloadForConsent(
+	payload: Record<string, unknown>,
 	level: ConsentLevel,
 ): ConsentFilterResult {
 	if (level === 'none') {
-		return { allowed: false, extraData: {}, strippedKeys: Object.keys(extraData) };
+		return { allowed: false, buckets: {}, unclassified: [] };
 	}
 
 	const rank = consentRank(level);
-	const kept: Record<string, unknown> = {};
-	const strippedKeys: string[] = [];
-	for (const [key, value] of Object.entries(extraData)) {
-		const min = KEY_MIN_LEVEL[key];
-		if (min && consentRank(min) > rank) {
-			strippedKeys.push(key);
+	const buckets: LogBuckets = {};
+	const unclassified: string[] = [];
+	for (const [key, value] of Object.entries(payload)) {
+		if (!isLogBucket(key) || !isPlainObject(value)) {
+			unclassified.push(key);
 			continue;
 		}
-		kept[key] = value;
+		if (consentRank(key) > rank) continue;
+		if (key !== 'usage') {
+			buckets[key] = value;
+			continue;
+		}
+		const usage: Record<string, unknown> = {};
+		for (const [field, fieldValue] of Object.entries(value)) {
+			if (isUsageValue(fieldValue)) usage[field] = fieldValue;
+			else unclassified.push(`usage.${field}`);
+		}
+		buckets.usage = usage;
 	}
-	return { allowed: true, extraData: kept, strippedKeys };
+	return { allowed: true, buckets, unclassified };
 }

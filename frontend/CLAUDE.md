@@ -206,7 +206,7 @@ typed helpers in `src/api/logging.ts` (`draftLog`, `reviseLog`, `chatLog`). Ever
 event is written with a consistent envelope:
 
 ```
-{ schema_version, page, event, timestamp, ...payload }
+{ schema_version, page, event, timestamp, usage, ai_output, document }
 ```
 
 - `page` scopes the event to the tab that emitted it (`draft` | `revise` | `chat`).
@@ -223,9 +223,15 @@ one page shares gets a helper that takes `page` as a parameter instead —
 `briefLog` (the brief section) and `referenceLog` (doctext citations) are the
 two, and for those `page` is the only thing that says where the event came from.
 
-Content-bearing payload fields must use names the consent gate recognizes
-(`src/consent.ts` `KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
-`message` / `target` are document text, `result` / `response` are AI output;
-everything else is usage-level metadata. The backend (`backend/src/logging.ts`)
-promotes `schema_version` and `page` to first-class columns on each JSONL entry.
+Every payload field goes in a **consent bucket** named after the lowest level
+allowed to store it: `usage` (counts, timings, modes, ids — primitives only),
+`ai_output` (what the assistant showed; may quote the writer), `document`
+(anything the writer wrote). Helpers keep flat signatures and sort fields into
+buckets themselves, so the classification lives in `api/logging.ts`. `LogEvent`
+has no index signature, so a field outside a bucket is a type error, and the
+server (`backend/src/consent.ts`) drops it at every level. Types can't stop a
+free-text string landing in `usage`; review does — see
+[../docs/reviewing.md](../docs/reviewing.md). When unsure, use the higher
+bucket. The backend (`backend/src/logging.ts`) promotes `schema_version` and
+`page` to first-class columns on each JSONL entry.
 

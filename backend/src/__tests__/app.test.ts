@@ -99,7 +99,7 @@ describe('POST /api/log', () => {
 				username: 'spoofed',
 				event: 'saved',
 				timestamp: 123,
-				detail: 'hello',
+				usage: { detail: 'hello' },
 			}),
 		});
 		expect(res.status).toBe(200);
@@ -107,7 +107,7 @@ describe('POST /api/log', () => {
 		expect(entry.username).toBe('user-123');
 		expect(entry.event).toBe('saved');
 		expect(entry.extra_data.client_timestamp).toBe(123);
-		expect(entry.extra_data.detail).toBe('hello');
+		expect(entry.extra_data.usage).toEqual({ detail: 'hello' });
 		expect(entry.extra_data.username).toBeUndefined();
 	});
 
@@ -120,16 +120,46 @@ describe('POST /api/log', () => {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				event: 'ShowSuggestion',
-				generation_type: 'example_sentences',
-				prompt: { beforeCursor: 'secret doc' },
-				result: { result: 'AI text' },
+				event: 'suggestion_shown',
+				usage: { generationType: 'example_sentences' },
+				ai_output: { result: 'AI text' },
+				document: { docContext: { beforeCursor: 'secret doc' } },
 			}),
 		});
 		const entry = await readUserLog('usr-usage');
-		expect(entry.extra_data.generation_type).toBe('example_sentences');
-		expect(entry.extra_data.prompt).toBeUndefined();
-		expect(entry.extra_data.result).toBeUndefined();
+		expect(entry.extra_data.usage).toEqual({
+			generationType: 'example_sentences',
+		});
+		expect(entry.extra_data).not.toHaveProperty('ai_output');
+		expect(entry.extra_data).not.toHaveProperty('document');
+		// Stripping by level is consent working, not a classification mistake.
+		expect(entry.extra_data).not.toHaveProperty('unclassified_keys');
+	});
+
+	it('drops fields outside a bucket at every level, reporting only their names', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-unclassified',
+			loggingConsent: 'document',
+		});
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				event: 'brief_edited',
+				// An old-style flat field nobody classified — the #615 failure.
+				brief: 'my secret thesis',
+				usage: { field: 'audience', excerpt: { text: 'nested text' } },
+			}),
+		});
+		const entry = await readUserLog('usr-unclassified');
+		expect(entry.extra_data.usage).toEqual({ field: 'audience' });
+		expect(entry.extra_data).not.toHaveProperty('brief');
+		expect(entry.extra_data.unclassified_keys).toEqual([
+			'brief',
+			'usage.excerpt',
+		]);
+		expect(JSON.stringify(entry)).not.toContain('secret thesis');
+		expect(JSON.stringify(entry)).not.toContain('nested text');
 	});
 
 	it("logs nothing at level 'none' but still returns 200", async () => {
@@ -158,7 +188,7 @@ describe('POST /api/log', () => {
 				event: 'suggestion_requested',
 				schema_version: 1,
 				page: 'draft',
-				generationType: 'example_sentences',
+				usage: { generationType: 'example_sentences' },
 			}),
 		});
 		expect(res.status).toBe(200);
@@ -169,7 +199,7 @@ describe('POST /api/log', () => {
 		// Promoted columns must not linger in extra_data.
 		expect(entry.extra_data).not.toHaveProperty('schema_version');
 		expect(entry.extra_data).not.toHaveProperty('page');
-		expect(entry.extra_data.generationType).toBe('example_sentences');
+		expect(entry.extra_data.usage.generationType).toBe('example_sentences');
 	});
 
 	it('defaults schema_version to 0 and page to null for pre-schema clients', async () => {

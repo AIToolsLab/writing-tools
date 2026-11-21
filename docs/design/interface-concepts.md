@@ -926,7 +926,7 @@ wrote, as a number*.
 
 **And the self-reported leg needs no logging at all.** End-of-session
 reflections are writer-authored prose: sent to `/log` they would be
-`document`-tier by `KEY_MIN_LEVEL` and would vanish for almost every user. So
+`document`-bucket data (`frontend/src/api/logging.ts`) and would vanish for almost every user. So
 they must not go there. They belong in writer-owned storage — the mechanism the
 doc brief already uses (`setDocumentSetting`: Office settings, Apps Script
 document properties, localStorage fallback) — shown back only to the writer, and
