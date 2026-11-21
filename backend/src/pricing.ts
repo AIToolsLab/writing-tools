@@ -130,3 +130,8 @@ export function costUsd(counts: TokenCounts): number | null {
 	);
 }
 
+
+/** The most expensive output rate in the table, per 1M tokens (see quota.ts). */
+export function maxOutputRate(): number {
+	return Math.max(...Object.values(RATES).map((r) => r.output));
+}

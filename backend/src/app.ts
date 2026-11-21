@@ -20,13 +20,17 @@ import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import {
 	attributeRequest,
+	MODEL_SUBSTITUTED_HEADER,
 	openaiProxy,
 	PLATFORM_AUTH_ERROR_HEADER,
+	QUOTA_RESETS_HEADER,
+	QUOTA_STATE_HEADER,
 	type ProxyIdentity,
 	type ProxyUser,
 } from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
+import { publicStatus, quotaStatus } from './quota.js';
 import {
 	createToolGrant,
 	DEFAULT_TOOL_SCOPES,
@@ -92,7 +96,18 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const oauthIssuer = `${betterAuthOrigin()}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
-	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
+	app.use(
+		'*',
+		cors({
+			exposeHeaders: [
+				PLATFORM_AUTH_ERROR_HEADER,
+				QUOTA_STATE_HEADER,
+				QUOTA_RESETS_HEADER,
+				MODEL_SUBSTITUTED_HEADER,
+				'Retry-After',
+			],
+		}),
+	);
 	app.use('*', posthogMiddleware);
 
 	if (auth) {
@@ -184,6 +199,22 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		const attribution = attributeRequest(user, !!auth);
 		if (!attribution) {
 			return c.json({ detail: 'Sign in to use voice.' }, 401);
+		}
+		// Voice is unmetered (see above), so a spend cap can't see it. Until it is
+		// metered, only accounts with no cap may use it: not demo users (anonymous
+		// sessions or sessionless), and not signed-in users unless an admin has
+		// marked them exempt in user_quota. Local dev with auth off is left open.
+		if (
+			auth &&
+			(!user || user.isAnonymous || quotaStatus(attribution.userId).capped)
+		) {
+			return c.json(
+				{
+					error: { code: 'voice_unavailable' },
+					detail: 'Voice isn’t available on this account yet.',
+				},
+				403,
+			);
 		}
 		const key = attribution.apiKey;
 		if (!key) {
@@ -321,6 +352,14 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		};
 		return { kind: 'authenticated', user: oauthUser };
 	}
+
+	// The signed-in user's spend-cap standing, for the account page and the
+	// taskpane's heads-up. Percentages and reset times only — never dollars.
+	app.get('/api/me/quota', async (c) => {
+		const user = await resolveUser(c);
+		if (!user) return c.json({ detail: 'Unauthorized' }, 401);
+		return c.json(publicStatus(quotaStatus(user.id)));
+	});
 
 	// Client event logging. Requires an authenticated session: the log is keyed by
 	// the Better Auth user id (not a client-supplied name), and content fields are
