@@ -16,6 +16,7 @@ export type LogEventType =
   | 'surveyInputUpdate'
   | `aiRequest:${string}`
   | `aiResponse:${string}`
+  | `aiError:${string}`
   | 'surveyComplete:intro-survey'
   | 'surveyComplete:post-task-survey'
   | 'chatMessage:user'

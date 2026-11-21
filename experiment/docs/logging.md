@@ -68,6 +68,13 @@ it skips participants without `taskComplete` and doesn't deduplicate.
   `logChanges` (currently the post-task email feedback micro-task): `questionId`,
   the full `value`, and its `length` on every change. The final answers are still
   in `surveyComplete:*`.
+- AI suggestions log `aiRequest:<mode>` when a request is sent, then either
+  `aiResponse:<mode>` (not logged when the suggestion is identical to the previous
+  one) or `aiError:<mode>` with `extra_data: { isAutoRefresh, errorName, errorMessage }`
+  (`TimeoutError` is the 20s client timeout; `EmptySuggestion` is an empty reply).
+  A failed request is retried on the next auto-refresh tick, and a tick is skipped
+  while a request is still in flight. Logs from before `aiError` existed show a
+  failure only as an `aiRequest` with nothing after it.
 - Both `surveyComplete:*` events have `extra_data: { scenarioId, condition, answers }`,
   with `answers` keyed by question id. Some post-task keys (`comprehension_*`) mean a
   different question in each scenario, so `scenarioId` is needed to interpret them.

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import type { RefObject } from 'react';
 import AIPanel from '@/components/AIPanel';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import { studyParamsAtom } from '@/contexts/StudyContext';
+import { log } from '@/lib/logging';
 import type { ConversationMessage, TextEditorState } from '@/types';
 import type { StudyParams } from '@/types/study';
 import { renderWithJotai } from '../utils/test-utils';
@@ -139,5 +140,108 @@ describe('AIPanel - auto-refresh', () => {
     expect(body.conversationHistory).toEqual(conversation(3));
     expect(body.context).toBe('complete_document');
     expect(body.editorState).toEqual(editorState);
+  });
+});
+
+describe('AIPanel - failures and slow requests', () => {
+  const okResponse = (text: string) =>
+    new Response(JSON.stringify({ suggestions: [text] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const suggestionCalls = () =>
+    fetchMock.mock.calls.filter(([url]) => url === '/api/writing-support');
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(log).mockClear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  // Regression: the request was recorded as "previous" before it was sent, so
+  // after a failure the next tick saw an unchanged draft, treated it as a
+  // duplicate, cleared the error, and never retried.
+  it('retries an unchanged request on the next tick after a failure', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(okResponse('recovered suggestion'));
+    renderPanel(conversation(2));
+
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(1);
+    expect(screen.getByText(/Failed to fetch/)).toBeInTheDocument();
+
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(2);
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    expect(screen.getByText(/recovered suggestion/)).toBeInTheDocument();
+
+    // Once it has succeeded, unchanged repeats are skipped again
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(2);
+  });
+
+  it('retries after an HTTP error and logs the failure', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('{}', { status: 500 }))
+      .mockResolvedValueOnce(okResponse('ok now'));
+    renderPanel(conversation(2));
+
+    await advance(INTERVAL);
+    expect(screen.getByText(/status: 500/)).toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'aiError:complete_document',
+        extra_data: expect.objectContaining({ errorMessage: 'HTTP error! status: 500' }),
+      })
+    );
+
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(2);
+    expect(screen.getByText(/ok now/)).toBeInTheDocument();
+  });
+
+  it('does not start another request while one is still in flight', async () => {
+    let resolveSlow!: (r: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => { resolveSlow = resolve; })
+    );
+    const { rerender } = renderPanel(conversation(2));
+
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(1);
+
+    // The chat changes, so the next tick isn't a duplicate, but the first
+    // request is still pending
+    rerender(<AIPanel writingAreaRef={writingAreaRef} isStudyMode chatConversation={conversation(3)} />);
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(1);
+
+    fetchMock.mockResolvedValueOnce(okResponse('second'));
+    await act(async () => {
+      resolveSlow(okResponse('first'));
+    });
+    expect(screen.getByText(/first/)).toBeInTheDocument();
+
+    // The next tick picks up the newer chat state
+    await advance(INTERVAL);
+    expect(suggestionCalls()).toHaveLength(2);
+    expect(screen.getByText(/second/)).toBeInTheDocument();
+  });
+
+  it('shows the timeout message when the request times out', async () => {
+    fetchMock.mockRejectedValueOnce(new DOMException('signal timed out', 'TimeoutError'));
+    renderPanel(conversation(2));
+
+    await advance(INTERVAL);
+    expect(screen.getByText(/took too long/)).toBeInTheDocument();
   });
 });
