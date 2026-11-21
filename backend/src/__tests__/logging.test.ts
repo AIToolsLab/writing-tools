@@ -50,6 +50,9 @@ describe('appendLog', () => {
 			schema_version: 1,
 			page: 'draft',
 			client_id: null,
+			doc_id: null,
+			session_id: null,
+			consent_level: 'document',
 			extra_data: { a: 1 },
 		});
 		await appendLog({
@@ -60,6 +63,9 @@ describe('appendLog', () => {
 			schema_version: 1,
 			page: 'chat',
 			client_id: null,
+			doc_id: null,
+			session_id: null,
+			consent_level: 'document',
 			extra_data: {},
 		});
 
@@ -80,6 +86,9 @@ describe('appendLog', () => {
 				schema_version: 1,
 				page: 'draft',
 				client_id: null,
+				doc_id: null,
+				session_id: null,
+				consent_level: 'document',
 				extra_data: {},
 			}),
 		).rejects.toThrow();
@@ -125,6 +134,9 @@ describe('zipLogs', () => {
 			schema_version: 1,
 			page: 'draft',
 			client_id: null,
+			doc_id: null,
+			session_id: null,
+			consent_level: 'document',
 			extra_data: {},
 		});
 		const zip = await zipLogs();

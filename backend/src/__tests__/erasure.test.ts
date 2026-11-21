@@ -44,6 +44,9 @@ async function logSomething(userId: string) {
 		schema_version: 1,
 		page: null,
 		client_id: null,
+		doc_id: null,
+		session_id: null,
+		consent_level: 'document',
 		extra_data: {},
 	});
 }

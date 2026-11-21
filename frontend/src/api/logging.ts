@@ -73,8 +73,12 @@ import type { LogFn } from '@/hooks/useLog';
  *       Field names are unchanged. The server drops anything outside a bucket
  *       at every level and lists the dropped names in
  *       `extra_data.unclassified_keys`.
+ *  10 — New envelope columns: `doc_id` (our own id, stored in the document —
+ *       see `@/api/logIdentity` for its limits), `session_id` (one per page
+ *       load), and `consent_level` (the level the server applied to this
+ *       line, so a missing bucket can be told apart from one never sent).
  */
-export const LOG_SCHEMA_VERSION = 9;
+export const LOG_SCHEMA_VERSION = 10;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';

@@ -18,6 +18,13 @@ import { dataDir } from './config.js';
  * when the log line came in over a tool grant token, or null for the first-party
  * add-in. It's the logging counterpart of the same column on `llm_usage`, keying
  * study events by (user, tool) so a per-study export can scope to its own tool.
+ *
+ * `doc_id` and `session_id` group events below the user: which document (our own
+ * id stored in the file — see frontend `src/api/logIdentity.ts`) and which page
+ * load. Client-supplied, so they are validated as opaque ids and null otherwise
+ * (and on entries written before schema 10). `consent_level` is the level the
+ * server applied to this line, so a reader can tell a bucket stripped by consent
+ * from one that was never sent.
  */
 export interface LogEntry {
 	timestamp: number;
@@ -27,6 +34,9 @@ export interface LogEntry {
 	schema_version: number;
 	page: string | null;
 	client_id: string | null;
+	doc_id: string | null;
+	session_id: string | null;
+	consent_level: string;
 	extra_data: Record<string, unknown>;
 }
 
