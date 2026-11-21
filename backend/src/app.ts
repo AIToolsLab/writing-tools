@@ -353,6 +353,17 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		const page = typeof payload.page === 'string' ? payload.page : null;
 		delete payload.page;
 
+		// Grouping ids (see LogEntry). Opaque to us; anything that doesn't look
+		// like an id is dropped rather than stored, since it's client-supplied.
+		const opaqueId = (value: unknown) =>
+			typeof value === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(value)
+				? value
+				: null;
+		const docId = opaqueId(payload.doc_id);
+		delete payload.doc_id;
+		const sessionId = opaqueId(payload.session_id);
+		delete payload.session_id;
+
 		// Server-side consent gate (the client also pre-strips). Level 'none' drops
 		// the event entirely; otherwise buckets above the user's level are
 		// removed, and anything outside a bucket is dropped at every level.
@@ -386,6 +397,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				schema_version: schemaVersion,
 				page,
 				client_id: user.clientId,
+				doc_id: docId,
+				session_id: sessionId,
+				consent_level: user.loggingConsent,
 				extra_data: extraData,
 			});
 		} catch (e) {

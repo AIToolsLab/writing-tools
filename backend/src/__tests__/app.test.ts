@@ -202,6 +202,48 @@ describe('POST /api/log', () => {
 		expect(entry.extra_data.usage.generationType).toBe('example_sentences');
 	});
 
+	it('stores doc_id, session_id and the applied consent level as columns', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-ids',
+			loggingConsent: 'ai_output',
+		});
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				event: 'suggestion_requested',
+				doc_id: '0b6f3c1e-1d2a-4c8e-9a51-2f7d3b9e6c10',
+				session_id: 'a1b2c3d4e5f6a7b8',
+			}),
+		});
+		const entry = await readUserLog('usr-ids');
+		expect(entry.doc_id).toBe('0b6f3c1e-1d2a-4c8e-9a51-2f7d3b9e6c10');
+		expect(entry.session_id).toBe('a1b2c3d4e5f6a7b8');
+		expect(entry.consent_level).toBe('ai_output');
+		// Columns, not unclassified payload.
+		expect(entry.extra_data).not.toHaveProperty('unclassified_keys');
+	});
+
+	it('nulls ids that do not look like ids', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-bad-ids',
+			loggingConsent: 'document',
+		});
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				event: 'e',
+				doc_id: 'My Thesis Draft.docx',
+				session_id: 42,
+			}),
+		});
+		const entry = await readUserLog('usr-bad-ids');
+		expect(entry.doc_id).toBeNull();
+		expect(entry.session_id).toBeNull();
+		expect(JSON.stringify(entry)).not.toContain('Thesis');
+	});
+
 	it('defaults schema_version to 0 and page to null for pre-schema clients', async () => {
 		const { app: authApp } = makeAuthApp({
 			id: 'usr-legacy',

@@ -48,6 +48,8 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   (`usage` / `ai_output` / `document`, `src/consent.ts`) the user's level
   allows; anything outside a bucket, and any nested value in `usage`, is
   dropped at every level and its name listed in `extra_data.unclassified_keys`.
+  Each entry also carries `doc_id` / `session_id` (client-supplied, validated as
+  opaque ids, else null) and `consent_level` (the level the server applied).
   Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`) are gated by
   `LOG_SECRET`.
 - **Frontend serving** (`src/static.ts`): in the production single-container image

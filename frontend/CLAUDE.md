@@ -216,6 +216,13 @@ event is written with a consistent envelope:
   history line in `logging.ts`) whenever the envelope or a payload changes shape.
   Pre-schema events have no `schema_version`; readers treat those as version 0.
 - Identity is the session user id, added server-side — never send a username.
+- `doc_id` and `session_id` are stamped by `useLog` (`src/api/logIdentity.ts`):
+  our own random id stored in the document under the `docId` setting (never
+  the platform's id — a Google Docs id is the secret of a link-shared doc), and
+  one id per page load. The doc id is minted lazily on the first logged event,
+  so a writer at consent `none` never has it written into their file. Its
+  limits (copies share an id; localStorage fallbacks make it per-browser) are
+  in that file. The server adds `consent_level`, the level it applied.
 
 Add new events by adding a method to the relevant page's helper object so the
 naming convention and payload types stay in one place. Behaviour that more than

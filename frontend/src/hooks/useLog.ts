@@ -7,15 +7,19 @@
  *   - strips consent buckets above the user's level (see @/consent), so we never
  *     transmit more than they allowed (the server re-checks authoritatively);
  *   - drops the event entirely at level `none`;
+ *   - stamps `doc_id` and `session_id` (see @/api/logIdentity) — after the
+ *     consent check, so a `none` writer's document is never given an id;
  *   - attaches the access token; no-ops silently when the user isn't signed in.
  *
  * Logging is best-effort and never throws into the UI.
  */
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 import { SERVER_URL } from '@/api';
 import { DEVICE_CLIENT_ID } from '@/api/deviceAuth';
+import { getOrCreateDocId, LOG_SESSION_ID } from '@/api/logIdentity';
 import { filterBucketsForConsent, type LogBuckets } from '@/consent';
 import { useAppAuth } from '@/contexts/appAuthContext';
+import { EditorContext } from '@/contexts/editorContext';
 
 /**
  * One event: the envelope plus its payload, already sorted into consent
@@ -32,6 +36,7 @@ export type LogFn = (payload: LogEvent) => Promise<void>;
 
 export function useLog(): LogFn {
 	const { getAccessToken, loggingConsent } = useAppAuth();
+	const editorAPI = useContext(EditorContext);
 
 	return useCallback<LogFn>(
 		async (payload) => {
@@ -50,6 +55,8 @@ export function useLog(): LogFn {
 				return;
 			}
 
+			const docId = await getOrCreateDocId(editorAPI);
+
 			try {
 				const res = await fetch(`${SERVER_URL}/log`, {
 					method: 'POST',
@@ -64,6 +71,8 @@ export function useLog(): LogFn {
 						event,
 						page,
 						schema_version,
+						doc_id: docId,
+						session_id: LOG_SESSION_ID,
 						...filtered,
 						timestamp: Date.now() / 1000,
 					}),
@@ -80,6 +89,6 @@ export function useLog(): LogFn {
 				// Best-effort; never disrupt the UI on a logging failure.
 			}
 		},
-		[getAccessToken, loggingConsent],
+		[getAccessToken, loggingConsent, editorAPI],
 	);
 }
