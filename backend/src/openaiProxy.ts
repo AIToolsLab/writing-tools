@@ -23,6 +23,7 @@ import type { Context } from 'hono';
 import type { SessionUser } from './auth.js'; // type-only: never runs the auth module
 import { openaiApiKey, openaiDemoApiKey } from './config.js';
 import { captureException } from './posthog.js';
+import { isPricedModel } from './pricing.js';
 import { ANONYMOUS_USER_ID, DEMO_USER_ID, recordUsage } from './usage.js';
 
 const OPENAI_BASE = 'https://api.openai.com/v1';
@@ -112,6 +113,8 @@ interface RawUsage {
 	cachedInputTokens: number;
 	outputTokens: number;
 	reasoningTokens: number;
+	cacheWriteTokens: number;
+	cacheWrite30mTokens: number;
 }
 
 function num(value: unknown): number {
@@ -131,6 +134,12 @@ export function parseUsage(obj: unknown): RawUsage | null {
 	const u = o.usage ?? o.response?.usage;
 	if (typeof u !== 'object' || u === null) return null;
 
+	// Cache writes (GPT-5.6 and later charge for them), per the Responses API's
+	// ResponseUsage reference. The retention split (`cache_write_tokens_details`) is
+	// optional there; without it cacheWrite30mTokens stays 0 and every write is
+	// priced at the more expensive 12-hour rate.
+	const inputDetails = u.input_tokens_details ?? u.prompt_tokens_details;
+
 	return {
 		inputTokens: num(u.input_tokens ?? u.prompt_tokens),
 		cachedInputTokens: num(
@@ -141,6 +150,10 @@ export function parseUsage(obj: unknown): RawUsage | null {
 		reasoningTokens: num(
 			u.output_tokens_details?.reasoning_tokens ??
 				u.completion_tokens_details?.reasoning_tokens,
+		),
+		cacheWriteTokens: num(inputDetails?.cache_write_tokens),
+		cacheWrite30mTokens: num(
+			inputDetails?.cache_write_tokens_details?.ttl_30m_tokens,
 		),
 	};
 }
@@ -224,6 +237,33 @@ function wantsStream(parsed: Record<string, unknown> | null): boolean {
 	return parsed?.stream === true;
 }
 
+/**
+ * Service tiers the proxy will forward. pricing.ts holds Standard rates only, so a
+ * tier that costs more (`fast`/`priority` ≈ 2×, `ultrafast` 3–6×, `scale`) would be
+ * spend the cap under-counts; external clients write their own request bodies, so
+ * this can't rely on our frontend never setting it. `flex` costs less than
+ * Standard (over-counted, which is the safe direction). `auto` uses the OpenAI
+ * project's configured tier, which is Standard unless someone changes it there.
+ */
+const ALLOWED_SERVICE_TIERS = new Set(['auto', 'default', 'flex']);
+
+/** The requested service tier, if it's one the proxy refuses; otherwise null. */
+function refusedServiceTier(parsed: Record<string, unknown> | null): string | null {
+	const tier = parsed?.service_tier;
+	if (tier === undefined || tier === null) return null;
+	if (typeof tier === 'string' && ALLOWED_SERVICE_TIERS.has(tier)) return null;
+	return String(tier);
+}
+
+/**
+ * Background mode (Responses API) answers at once with a queued response that has
+ * no usage; the work, and the spend, happen later, out of the proxy's sight. The
+ * proxy can't meter that, so it refuses it.
+ */
+function wantsBackground(parsed: Record<string, unknown> | null): boolean {
+	return parsed?.background === true;
+}
+
 function requestedModel(parsed: Record<string, unknown> | null): string {
 	const model = parsed?.model;
 	return typeof model === 'string' ? model : 'unknown';
@@ -259,6 +299,36 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		const body = await c.req.text();
 		const parsedBody = parseBody(body);
 		const streaming = wantsStream(parsedBody);
+
+		// Only models we can price may be served: the spend cap counts dollars, and
+		// a model with no rate would be spend it can't see.
+		const asked = requestedModel(parsedBody);
+		if (!isPricedModel(asked)) {
+			return proxyError(
+				c,
+				400,
+				'model_not_allowed',
+				`Model "${asked}" is not available through this server.`,
+			);
+		}
+		const tier = refusedServiceTier(parsedBody);
+		if (tier !== null) {
+			return proxyError(
+				c,
+				400,
+				'service_tier_not_allowed',
+				`Service tier "${tier}" is not available through this server.`,
+			);
+		}
+		if (wantsBackground(parsedBody)) {
+			return proxyError(
+				c,
+				400,
+				'background_not_allowed',
+				'Background mode is not available through this server.',
+			);
+		}
+
 		const startedAt = Date.now();
 
 		const upstream = await fetch(`${OPENAI_BASE}/${endpoint}`, {
@@ -302,6 +372,8 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 					cachedInputTokens: usage?.cachedInputTokens ?? 0,
 					outputTokens: usage?.outputTokens ?? 0,
 					reasoningTokens: usage?.reasoningTokens ?? 0,
+					cacheWriteTokens: usage?.cacheWriteTokens ?? 0,
+					cacheWrite30mTokens: usage?.cacheWrite30mTokens ?? 0,
 					status: upstream.status,
 					streamed: streaming,
 					durationMs: Date.now() - startedAt,
@@ -399,4 +471,20 @@ function platformAuthError(
 		status,
 		{ [PLATFORM_AUTH_ERROR_HEADER]: PLATFORM_AUTH_ERROR_VALUE },
 	);
+}
+
+/**
+ * A refusal the proxy itself decides (not the upstream's). The body uses the same
+ * `{ error: { code, message } }` envelope as OpenAI's errors, so the client's
+ * error reader (frontend/src/api/errors.ts) finds the code without special-casing.
+ * Deliberately NOT marked with PLATFORM_AUTH_ERROR_HEADER: external clients read
+ * that as "your credential is bad, sign in again", which these are not.
+ */
+function proxyError(
+	c: Context,
+	status: 400,
+	code: 'model_not_allowed' | 'service_tier_not_allowed' | 'background_not_allowed',
+	detail: string,
+): Response {
+	return c.json({ error: { code, message: detail }, detail }, status);
 }

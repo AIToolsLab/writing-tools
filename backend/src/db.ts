@@ -118,6 +118,17 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
 		`);
 	},
+	// v4 — cache-write token counts. GPT-5.6+ models charge for writing prompt
+	// tokens to the cache (more than ordinary input), so spend that ignored them
+	// would under-count. cache_write_30m_tokens is the part reported as 30-minute
+	// writes; the rest of cache_write_tokens is priced at the more expensive 12-hour
+	// rate (see costUsd in pricing.ts).
+	(conn) => {
+		conn.exec(`
+			ALTER TABLE llm_usage ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0;
+			ALTER TABLE llm_usage ADD COLUMN cache_write_30m_tokens INTEGER NOT NULL DEFAULT 0;
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

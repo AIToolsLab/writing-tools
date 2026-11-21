@@ -83,6 +83,26 @@ fetch a session JWT from `GET /api/auth/token`, signed with the same keys. The
 proxy rejects those: their issuer is the bare origin rather than
 `<origin>/api/auth`, and they carry no `openai:chat` scope or trusted `azp`.
 
+## Client contract (what Mindmap can rely on)
+
+Requests to the two proxy endpoints are OpenAI request bodies, forwarded to
+OpenAI with the server's key; successful responses (and OpenAI's own errors) come
+back unchanged, streamed or not. Usage is metered to the token's user.
+
+The proxy refuses some requests itself, before calling OpenAI. Its errors use
+OpenAI's envelope, so OpenAI SDKs surface the code:
+`{ "error": { "code": "<code>", "message": "…" }, "detail": "…" }`.
+
+| Status | `error.code` | Meaning | Client should |
+|---|---|---|---|
+| 401 | — (header `X-Writing-Tools-Error: platform-auth`) | Token invalid, expired, or its Thoughtful session ended | Sign in again |
+| 400 | `model_not_allowed` | `model` isn't in the server's rate table (`backend/src/pricing.ts`; dated snapshots of a listed model are allowed) | Use a listed model; not retryable |
+| 400 | `service_tier_not_allowed` | `service_tier` is `fast`, `priority`, `ultrafast` or `scale` (costs more than the Standard rates the server prices at). `auto`, `default`, `flex` and omitting it are fine | Drop the parameter; not retryable |
+| 400 | `background_not_allowed` | Responses `background: true` (its usage arrives later, where the server can't meter it) | Don't use background mode |
+
+Only the 401 carries the platform-auth header: no other error means "sign in
+again".
+
 ## Provisioning and deployment
 
 `MINDMAP_OAUTH_CLIENT_ID` and `MINDMAP_OAUTH_REDIRECT_URIS` configure the fixed

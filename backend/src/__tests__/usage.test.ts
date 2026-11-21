@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db } from '../db.js';
-import { costUsd } from '../pricing.js';
+import { costUsd, isPricedModel } from '../pricing.js';
 import {
 	anonymizeUserUsage,
 	DELETED_USER_ID,
@@ -176,5 +176,66 @@ describe('costUsd', () => {
 				outputTokens: 1_000_000,
 			}),
 		).toBeNull();
+	});
+});
+
+describe('costUsd with cache writes', () => {
+	it('prices writes apart from reads, at the 12h rate when not broken down', () => {
+		// gpt-6-luna: input 0.10, read 0.01, 30m write 0.125, 12h write 0.25.
+		const cost = costUsd({
+			model: 'gpt-6-luna',
+			inputTokens: 1_000_000,
+			cachedInputTokens: 200_000,
+			cacheWriteTokens: 300_000,
+			outputTokens: 0,
+		});
+		// 500k ordinary + 200k read + 300k written (12h).
+		expect(cost).toBeCloseTo(0.05 + 0.002 + 0.075, 10);
+	});
+
+	it('uses the 30m rate for the part reported as 30-minute writes', () => {
+		const cost = costUsd({
+			model: 'gpt-6-luna',
+			inputTokens: 1_000_000,
+			cachedInputTokens: 200_000,
+			cacheWriteTokens: 300_000,
+			cacheWrite30mTokens: 100_000,
+			outputTokens: 0,
+		});
+		expect(cost).toBeCloseTo(0.05 + 0.002 + 0.0125 + 0.05, 10);
+	});
+
+	it('charges gpt-5.6-terra for cache writes too (GPT-5.6 and later do)', () => {
+		// gpt-5.6-terra: input 2.00, read 0.20, 30m write 2.50, 12h write 5.00.
+		const cost = costUsd({
+			model: 'gpt-5.6-terra',
+			inputTokens: 1_000_000,
+			cachedInputTokens: 200_000,
+			cacheWriteTokens: 300_000,
+			cacheWrite30mTokens: 300_000,
+			outputTokens: 100_000,
+		});
+		// 500k ordinary + 200k read + 300k written (30m) + 100k output.
+		expect(cost).toBeCloseTo(1.0 + 0.04 + 0.75 + 1.2, 10);
+	});
+
+	it('bills writes as ordinary input for a model with no write rate', () => {
+		const cost = costUsd({
+			model: 'gpt-4o',
+			inputTokens: 1_000_000,
+			cachedInputTokens: 0,
+			cacheWriteTokens: 1_000_000,
+			outputTokens: 0,
+		});
+		expect(cost).toBeCloseTo(2.5, 10);
+	});
+});
+
+describe('isPricedModel', () => {
+	it('accepts listed models and their dated snapshots, nothing else', () => {
+		expect(isPricedModel('gpt-6-luna')).toBe(true);
+		expect(isPricedModel('gpt-6.2-sol-2026-10-01')).toBe(true);
+		expect(isPricedModel('gpt-9-ultra')).toBe(false);
+		expect(isPricedModel('unknown')).toBe(false);
 	});
 });

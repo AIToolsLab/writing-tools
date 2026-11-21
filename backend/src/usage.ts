@@ -56,6 +56,10 @@ export interface UsageRecord {
 	cachedInputTokens: number;
 	outputTokens: number;
 	reasoningTokens: number;
+	/** Prompt tokens written to the cache (subset of input, disjoint from cached). */
+	cacheWriteTokens?: number;
+	/** The part of cacheWriteTokens reported as 30-minute writes. */
+	cacheWrite30mTokens?: number;
 	status: number;
 	streamed: boolean;
 	durationMs: number;
@@ -69,8 +73,9 @@ export function recordUsage(record: UsageRecord): void {
 			`INSERT INTO llm_usage (
 				ts, user_id, client_id, provider, endpoint, model,
 				input_tokens, cached_input_tokens, output_tokens, reasoning_tokens,
+				cache_write_tokens, cache_write_30m_tokens,
 				status, streamed, duration_ms, ttft_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.run(
 			Date.now(),
@@ -83,6 +88,8 @@ export function recordUsage(record: UsageRecord): void {
 			record.cachedInputTokens,
 			record.outputTokens,
 			record.reasoningTokens,
+			record.cacheWriteTokens ?? 0,
+			record.cacheWrite30mTokens ?? 0,
 			record.status,
 			record.streamed ? 1 : 0,
 			record.durationMs,
@@ -118,6 +125,8 @@ export interface UsageSummaryRow {
 	cachedInputTokens: number;
 	outputTokens: number;
 	reasoningTokens: number;
+	cacheWriteTokens: number;
+	cacheWrite30mTokens: number;
 }
 
 /**
@@ -137,7 +146,9 @@ export function summarizeUsage(
 				SUM(input_tokens) AS input_tokens,
 				SUM(cached_input_tokens) AS cached_input_tokens,
 				SUM(output_tokens) AS output_tokens,
-				SUM(reasoning_tokens) AS reasoning_tokens
+				SUM(reasoning_tokens) AS reasoning_tokens,
+				SUM(cache_write_tokens) AS cache_write_tokens,
+				SUM(cache_write_30m_tokens) AS cache_write_30m_tokens
 			FROM llm_usage
 			WHERE ts >= ? AND ts < ?
 			GROUP BY user_id, client_id, provider, model
@@ -157,6 +168,8 @@ export function summarizeUsage(
 		cachedInputTokens: Number(r.cached_input_tokens),
 		outputTokens: Number(r.output_tokens),
 		reasoningTokens: Number(r.reasoning_tokens),
+		cacheWriteTokens: Number(r.cache_write_tokens),
+		cacheWrite30mTokens: Number(r.cache_write_30m_tokens),
 	}));
 }
 
