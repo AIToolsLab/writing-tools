@@ -4,8 +4,8 @@
  * Replaces the old anonymous `log()` in @/api. The server now derives identity
  * from the session and requires a Bearer token, so logging must run inside the
  * auth context. This hook:
- *   - strips content fields above the user's consent level (see @/consent), so we
- *     never transmit more than they allowed (the server re-checks authoritatively);
+ *   - strips consent buckets above the user's level (see @/consent), so we never
+ *     transmit more than they allowed (the server re-checks authoritatively);
  *   - drops the event entirely at level `none`;
  *   - attaches the access token; no-ops silently when the user isn't signed in.
  *
@@ -14,13 +14,18 @@
 import { useCallback } from 'react';
 import { SERVER_URL } from '@/api';
 import { DEVICE_CLIENT_ID } from '@/api/deviceAuth';
-import { filterPayloadForConsent } from '@/consent';
+import { filterBucketsForConsent, type LogBuckets } from '@/consent';
 import { useAppAuth } from '@/contexts/appAuthContext';
 
-export interface LogEvent {
+/**
+ * One event: the envelope plus its payload, already sorted into consent
+ * buckets. There is deliberately no index signature — a field outside a bucket
+ * is a type error here and is dropped by the server.
+ */
+export interface LogEvent extends LogBuckets {
 	event: string;
-	// biome-ignore lint/suspicious/noExplicitAny: events carry arbitrary serializable fields
-	[key: string]: any;
+	page: string;
+	schema_version: number;
 }
 
 export type LogFn = (payload: LogEvent) => Promise<void>;
@@ -30,8 +35,9 @@ export function useLog(): LogFn {
 
 	return useCallback<LogFn>(
 		async (payload) => {
-			const { allowed, payload: filtered } = filterPayloadForConsent(
-				payload,
+			const { event, page, schema_version, ...buckets } = payload;
+			const { allowed, buckets: filtered } = filterBucketsForConsent(
+				buckets,
 				loggingConsent,
 			);
 			if (!allowed) return;
@@ -55,6 +61,9 @@ export function useLog(): LogFn {
 						'X-Client-Id': DEVICE_CLIENT_ID,
 					},
 					body: JSON.stringify({
+						event,
+						page,
+						schema_version,
 						...filtered,
 						timestamp: Date.now() / 1000,
 					}),

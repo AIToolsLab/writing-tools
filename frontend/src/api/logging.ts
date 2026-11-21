@@ -5,7 +5,7 @@
  * through the helpers in this module so that the study logs share one
  * consistent schema. Each event is written as:
  *
- *   { schema_version, page, event, timestamp, ...data }
+ *   { schema_version, page, event, timestamp, usage, ai_output, document }
  *
  * - `schema_version` lets log readers tell newer events from older ones. Bump
  *   {@link LOG_SCHEMA_VERSION} whenever the envelope or an event payload changes
@@ -19,15 +19,24 @@
  * Transport, identity, and consent are owned by {@link useLog} (see
  * `@/hooks/useLog`): the server derives the user from the session, and content
  * fields are stripped to the user's consent level. Each page calls `useLog()`
- * once and passes the resulting {@link LogFn} to these helpers. Content-bearing
- * payload fields must use names the consent gate recognizes (see
- * `@/consent` `KEY_MIN_LEVEL`): `docContext`/`message`/`target` are document
- * text, `result`/`response` are AI output; everything else is usage metadata.
+ * once and passes the resulting {@link LogFn} to these helpers.
+ *
+ * Every payload field goes in a consent bucket, named after the lowest level
+ * allowed to store it (see `@/consent` `LogBuckets`):
+ *   - `usage`     — counts, timings, modes, ids. Primitives only.
+ *   - `ai_output` — what the assistant showed the writer.
+ *   - `document`  — anything the writer wrote: document text, messages,
+ *                   quoted spans, proposed edits, the brief.
+ * Helpers keep their flat call-site signatures and sort fields into buckets
+ * themselves, so the classification of every logged field is in this file.
+ * When unsure, use the higher bucket: a field stored too rarely is a lost
+ * metric, a field stored too often breaks what we told the writer.
  *
  * Event names and payload shapes are declared once here (never inline at call
  * sites) so the naming convention stays consistent and payloads are type
  * checked. To add an event, add a method to the relevant page's helper object.
  */
+import type { LogBuckets } from '@/consent';
 import type { LogFn } from '@/hooks/useLog';
 
 /**
@@ -59,8 +68,13 @@ import type { LogFn } from '@/hooks/useLog';
  *       (llm.thoughtful-ai.com), so its `ms` aren't comparable with version 7's.
  *       `highlights_scored` and `predictions_fetched` add `serverMs`, the
  *       engine's own time for the request.
+ *   9 — Payload fields moved out of the top level into consent buckets:
+ *       `extra_data.usage`, `extra_data.ai_output`, `extra_data.document`.
+ *       Field names are unchanged. The server drops anything outside a bucket
+ *       at every level and lists the dropped names in
+ *       `extra_data.unclassified_keys`.
  */
-export const LOG_SCHEMA_VERSION = 8;
+export const LOG_SCHEMA_VERSION = 9;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';
@@ -73,9 +87,9 @@ function emit(
 	log: LogFn,
 	page: LogPage,
 	event: string,
-	data: Record<string, unknown> = {},
+	buckets: LogBuckets = {},
 ): Promise<void> {
-	return log({ schema_version: LOG_SCHEMA_VERSION, page, event, ...data });
+	return log({ schema_version: LOG_SCHEMA_VERSION, page, event, ...buckets });
 }
 
 /**
@@ -88,7 +102,11 @@ export const draftLog = {
 		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return emit(log, 'draft', 'suggestion_requested', data);
+		const { docContext, ...usage } = data;
+		return emit(log, 'draft', 'suggestion_requested', {
+			usage,
+			document: { docContext },
+		});
 	},
 	/** A generated suggestion was shown to (and saved for) the writer. */
 	suggestionShown(
@@ -99,7 +117,12 @@ export const draftLog = {
 			result: GenerationResult;
 		},
 	) {
-		return emit(log, 'draft', 'suggestion_shown', data);
+		const { docContext, result, ...usage } = data;
+		return emit(log, 'draft', 'suggestion_shown', {
+			usage,
+			ai_output: { result },
+			document: { docContext },
+		});
 	},
 	/** The writer deleted a saved suggestion. */
 	suggestionDeleted(
@@ -110,14 +133,23 @@ export const draftLog = {
 			result: GenerationResult;
 		},
 	) {
-		return emit(log, 'draft', 'suggestion_deleted', data);
+		const { docContext, result, ...usage } = data;
+		return emit(log, 'draft', 'suggestion_deleted', {
+			usage,
+			ai_output: { result },
+			document: { docContext },
+		});
 	},
 	/** The model returned an empty suggestion, so nothing was shown. */
 	suggestionEmpty(
 		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return emit(log, 'draft', 'suggestion_empty', data);
+		const { docContext, ...usage } = data;
+		return emit(log, 'draft', 'suggestion_empty', {
+			usage,
+			document: { docContext },
+		});
 	},
 	/** A suggestion request failed (timeout or model error). */
 	generationError(
@@ -129,14 +161,22 @@ export const draftLog = {
 			code?: string;
 		},
 	) {
-		return emit(log, 'draft', 'generation_error', data);
+		const { docContext, ...usage } = data;
+		return emit(log, 'draft', 'generation_error', {
+			usage,
+			document: { docContext },
+		});
 	},
 	/** An automatic (non-user-initiated) refresh fired. */
 	autoRefresh(
 		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return emit(log, 'draft', 'auto_refresh', data);
+		const { docContext, ...usage } = data;
+		return emit(log, 'draft', 'auto_refresh', {
+			usage,
+			document: { docContext },
+		});
 	},
 };
 
@@ -147,32 +187,40 @@ export const draftLog = {
 export const reviseLog = {
 	/** A feature checkbox was toggled on or off. */
 	featureToggled(log: LogFn, data: { feature: string; selected: boolean }) {
-		return emit(log, 'revise', 'feature_toggled', data);
+		return emit(log, 'revise', 'feature_toggled', { usage: data });
 	},
 	/** The "Run" button was pressed for the current set of selected features. */
 	featuresRun(log: LogFn, data: { features: string[] }) {
-		return emit(log, 'revise', 'features_run', data);
+		return emit(log, 'revise', 'features_run', { usage: data });
 	},
 	/** A single feature's visualization request started streaming. */
 	visualizationRequested(
 		log: LogFn,
 		data: { feature: string; isOverall: boolean; docContext: DocContext },
 	) {
-		return emit(log, 'revise', 'visualization_requested', data);
+		const { docContext, ...usage } = data;
+		return emit(log, 'revise', 'visualization_requested', {
+			usage,
+			document: { docContext },
+		});
 	},
 	/** A visualization finished streaming successfully. */
 	visualizationCompleted(
 		log: LogFn,
 		data: { feature: string; response: string },
 	) {
-		return emit(log, 'revise', 'visualization_completed', data);
+		const { response, ...usage } = data;
+		return emit(log, 'revise', 'visualization_completed', {
+			usage,
+			ai_output: { response },
+		});
 	},
 	/** A visualization request failed (and was not merely cancelled). */
 	visualizationError(
 		log: LogFn,
 		data: { feature: string; error: string; code?: string },
 	) {
-		return emit(log, 'revise', 'visualization_error', data);
+		return emit(log, 'revise', 'visualization_error', { usage: data });
 	},
 };
 
@@ -185,15 +233,19 @@ export const chatLog = {
 		log: LogFn,
 		data: { message: string; source: 'input' | 'suggested' },
 	) {
-		return emit(log, 'chat', 'message_sent', data);
+		const { message, ...usage } = data;
+		return emit(log, 'chat', 'message_sent', {
+			usage,
+			document: { message },
+		});
 	},
 	/** The assistant's streamed response finished. */
 	responseCompleted(log: LogFn, data: { responseLength: number }) {
-		return emit(log, 'chat', 'response_completed', data);
+		return emit(log, 'chat', 'response_completed', { usage: data });
 	},
 	/** The assistant response failed to stream (and was not cancelled). */
 	responseError(log: LogFn, data: { error: string; code?: string }) {
-		return emit(log, 'chat', 'response_error', data);
+		return emit(log, 'chat', 'response_error', { usage: data });
 	},
 	/** The writer discarded the transcript and started a new conversation. */
 	conversationReset(log: LogFn) {
@@ -232,7 +284,11 @@ export const chatLog = {
 			offending?: string;
 		},
 	) {
-		return emit(log, 'chat', `edit_${outcome}`, data);
+		const { proposal, offending, ...usage } = data;
+		return emit(log, 'chat', `edit_${outcome}`, {
+			usage,
+			document: { proposal, offending },
+		});
 	},
 };
 
@@ -248,7 +304,7 @@ export const chatLog = {
 export const referenceLog = {
 	/** The writer clicked a document reference. */
 	clicked(log: LogFn, page: LogPage, data: { target: string }) {
-		return emit(log, page, 'reference_clicked', data);
+		return emit(log, page, 'reference_clicked', { document: data });
 	},
 	/**
 	 * A clicked reference finished resolving. `found` records whether the quote
@@ -266,7 +322,11 @@ export const referenceLog = {
 			durationMs: number;
 		},
 	) {
-		return emit(log, page, 'reference_resolved', data);
+		const { target, ...usage } = data;
+		return emit(log, page, 'reference_resolved', {
+			usage,
+			document: { target },
+		});
 	},
 };
 
@@ -276,9 +336,7 @@ export const referenceLog = {
  * helpers above, the page is a parameter.
  *
  * Only whether a field ended up with content is recorded, never what the writer
- * typed. The text is document-level context and there is no consent-gated key
- * for it (see `@/consent` `KEY_MIN_LEVEL`); it reaches the study logs anyway as
- * part of the `docContext`-adjacent prompts each page already logs.
+ * typed. If the text is ever logged, it belongs in the `document` bucket.
  */
 export const docBriefLog = {
 	/** The writer left a brief field after changing it. */
@@ -287,7 +345,7 @@ export const docBriefLog = {
 		page: LogPage,
 		data: { field: string; hasContent: boolean },
 	) {
-		return emit(log, page, 'brief_edited', data);
+		return emit(log, page, 'brief_edited', { usage: data });
 	},
 };
 
@@ -302,15 +360,15 @@ export const toolsLog = {
 		log: LogFn,
 		data: { tool: string; sharedDoc: boolean; scopes: string[] },
 	) {
-		return emit(log, 'tools', 'tool_launched', data);
+		return emit(log, 'tools', 'tool_launched', { usage: data });
 	},
 	/** A handoff grant could not be minted (launch aborted). */
 	launchError(log: LogFn, data: { tool: string; error: string }) {
-		return emit(log, 'tools', 'launch_error', data);
+		return emit(log, 'tools', 'launch_error', { usage: data });
 	},
 	/** The writer opened an ad-hoc pasted URL directly (no grant; device-flow tool). */
 	adhocOpened(log: LogFn) {
-		return emit(log, 'tools', 'adhoc_opened', {});
+		return emit(log, 'tools', 'adhoc_opened');
 	},
 };
 
@@ -327,7 +385,7 @@ export const workbenchLog = {
 		log: LogFn,
 		data: { source: string; chars: number; hasPreviousParagraph: boolean },
 	) {
-		return emit(log, 'workbench', 'passage_pulled', data);
+		return emit(log, 'workbench', 'passage_pulled', { usage: data });
 	},
 	/** A highlights request finished. */
 	highlightsScored(
@@ -340,7 +398,7 @@ export const workbenchLog = {
 			ranges: number;
 		},
 	) {
-		return emit(log, 'workbench', 'highlights_scored', data);
+		return emit(log, 'workbench', 'highlights_scored', { usage: data });
 	},
 	/** A predictions request finished (cache misses only). */
 	predictionsFetched(
@@ -353,7 +411,7 @@ export const workbenchLog = {
 			words: number;
 		},
 	) {
-		return emit(log, 'workbench', 'predictions_fetched', data);
+		return emit(log, 'workbench', 'predictions_fetched', { usage: data });
 	},
 	/**
 	 * The writer took a suggestion. `draftChars` is the draft before it, so
@@ -368,13 +426,13 @@ export const workbenchLog = {
 			fromCache: boolean;
 		},
 	) {
-		return emit(log, 'workbench', 'suggestion_accepted', data);
+		return emit(log, 'workbench', 'suggestion_accepted', { usage: data });
 	},
 	/** A request to the writing engine failed. */
 	requestFailed(
 		log: LogFn,
 		data: { kind: 'highlights' | 'predictions'; error: string },
 	) {
-		return emit(log, 'workbench', 'request_failed', data);
+		return emit(log, 'workbench', 'request_failed', { usage: data });
 	},
 };

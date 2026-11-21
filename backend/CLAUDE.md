@@ -51,8 +51,12 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   `anonymizeUserUsage`).
 - **Logging** (`src/logging.ts`): structured JSONL to `backend/logs/<username>.jsonl`,
   same shape/location the Python backend used. `validateUsername` is the
-  path-traversal guard. Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`)
-  are gated by `LOG_SECRET`.
+  path-traversal guard. `/api/log` keeps only the consent buckets
+  (`usage` / `ai_output` / `document`, `src/consent.ts`) the user's level
+  allows; anything outside a bucket, and any nested value in `usage`, is
+  dropped at every level and its name listed in `extra_data.unclassified_keys`.
+  Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`) are gated by
+  `LOG_SECRET`.
 - **Frontend serving** (`src/static.ts`): in the production single-container image
   the backend also serves the built frontend (`frontend/dist`, copied to `./public`
   by the repo-root `Dockerfile`). `serveFrontend` registers a catch-all GET *after*

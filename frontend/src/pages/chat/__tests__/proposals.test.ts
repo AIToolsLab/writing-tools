@@ -152,8 +152,8 @@ describe('the word-bank gate', () => {
 		expect(t.log).toHaveBeenCalledWith(
 			expect.objectContaining({
 				event: 'edit_auto_denied',
-				reason: 'word_bank',
-				offending: 'elephant',
+				usage: expect.objectContaining({ reason: 'word_bank' }),
+				document: expect.objectContaining({ offending: 'elephant' }),
 			}),
 		);
 	});

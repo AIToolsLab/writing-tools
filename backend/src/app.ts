@@ -5,7 +5,7 @@ import type { Auth, SessionUser } from './auth.js'; // type-only import, no runt
 import {
 	CONSENT_LEVELS,
 	DEFAULT_CONSENT_LEVEL,
-	filterExtraDataForConsent,
+	filterLogPayloadForConsent,
 	isConsentLevel,
 } from './consent.js';
 import {
@@ -334,14 +334,12 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			unknown
 		>;
 
-		const extraData: Record<string, unknown> = {};
-		if ('timestamp' in payload) {
-			extraData.client_timestamp = payload.timestamp;
-			delete payload.timestamp;
-		}
 		// Identity comes from the session, never the client. Drop any legacy
 		// username the client still sends.
 		delete payload.username;
+
+		const clientTimestamp = payload.timestamp;
+		delete payload.timestamp;
 
 		const event = (payload.event as string) ?? 'unknown_event';
 		delete payload.event;
@@ -355,16 +353,27 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		const page = typeof payload.page === 'string' ? payload.page : null;
 		delete payload.page;
 
-		Object.assign(extraData, payload);
-
 		// Server-side consent gate (the client also pre-strips). Level 'none' drops
-		// the event entirely; lower levels strip content keys above their tier.
-		const { allowed, extraData: gated } = filterExtraDataForConsent(
-			extraData,
+		// the event entirely; otherwise buckets above the user's level are
+		// removed, and anything outside a bucket is dropped at every level.
+		const { allowed, buckets, unclassified } = filterLogPayloadForConsent(
+			payload,
 			user.loggingConsent,
 		);
 		if (!allowed) {
 			return c.json({ message: 'Logging disabled by consent level.' });
+		}
+
+		const extraData: Record<string, unknown> = { ...buckets };
+		if (clientTimestamp !== undefined) {
+			extraData.client_timestamp = clientTimestamp;
+		}
+		if (unclassified.length > 0) {
+			// Names only, never values, and bounded: these are code-chosen key
+			// names, but a client could send anything.
+			extraData.unclassified_keys = unclassified
+				.slice(0, 20)
+				.map((key) => key.slice(0, 64));
 		}
 
 		// Await so we can capture write failures.
@@ -377,7 +386,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				schema_version: schemaVersion,
 				page,
 				client_id: user.clientId,
-				extra_data: gated,
+				extra_data: extraData,
 			});
 		} catch (e) {
 			await captureException(e, { path: '/api/log' });

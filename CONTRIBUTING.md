@@ -11,5 +11,7 @@ for repo layout and workflow, then the `CLAUDE.md` / `README.md` in `frontend/`,
 
 - Keep each PR to one feature or fix, and link its issue (`Closes #123`).
 - Get a teammate's review before merging, and let CI go green first.
+- Reviewers: check the PR against [docs/reviewing.md](docs/reviewing.md)
+  (consent, the thoughtfulness value, cross-platform compatibility).
 - No branch-name or commit-message prefix scheme is enforced. Write a clear
   imperative subject line and don't worry beyond that.
