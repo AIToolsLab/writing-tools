@@ -21,6 +21,7 @@ window.Rubric = (() => {
   let llm = { ...DEFAULT_LLM, ...load(LS_LLM, {}) };
   const running = new Map(); // username -> 'running' | error message
   let batch = null; // { done, total, failed }
+  let lastBatch = null; // { total, failures: [[username, error]] } from the most recent codeAll
 
   // ---- Model list (GET <baseUrl>/models), for the Model field's autocomplete ----
   const modelList = Object.assign(document.createElement('datalist'), { id: 'llm-models' }); // not h(): it isn't defined yet when this file loads
@@ -210,6 +211,7 @@ window.Rubric = (() => {
       }
     };
     await Promise.all([worker(), worker(), worker()]);
+    lastBatch = { total: todo.length, failures: todo.filter((p) => running.has(p.username)).map((p) => [p.username, running.get(p.username)]) };
     batch = null;
     rerenderAll();
   }
@@ -368,6 +370,10 @@ window.Rubric = (() => {
       h('span', { class: 'muted' }, `${coded}/${eligible} submitted participants coded with the current codebook`),
       h('button', { onclick: () => download(`rubric-results-${codebook.version || 'codebook'}.json`, { kind: 'log-viewer-rubric-results', results }) }, 'Export results'),
     ));
+    if (!batch && lastBatch?.failures.length) {
+      box.append(h('div', { class: 'flag bad' }, `${lastBatch.failures.length} of ${lastBatch.total} failed:`,
+        h('ul', {}, lastBatch.failures.map(([u, err]) => h('li', {}, h('b', {}, u), ': ', err)))));
+    }
 
     const ta = h('textarea', { class: 'codebook-editor', rows: 22, spellcheck: 'false' });
     ta.value = JSON.stringify(codebook, null, 2);
