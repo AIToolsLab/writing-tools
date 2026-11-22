@@ -11,7 +11,7 @@ window.Rubric = (() => {
   const LS_CODEBOOK = 'logViewer.codebook';
   const LS_RESULTS = 'logViewer.rubricResults';
   const LS_LLM = 'logViewer.llm';
-  const DEFAULT_LLM = { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.6-terra', token: '', reasoning: 'auto' };
+  const DEFAULT_LLM = { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.6-terra', token: '', reasoning: 'default' };
 
   const load = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.warn('localStorage write failed', e); } };
@@ -48,7 +48,7 @@ window.Rubric = (() => {
   // ---- Reasoning ----
   const REASONING = { default: 'Model default', off: 'Off', low: 'Low', medium: 'Medium', high: 'High' };
   function effectiveReasoning() {
-    return llm.reasoning || 'default';
+    return REASONING[llm.reasoning] ? llm.reasoning : 'default';
   }
   function reasoningParams() {
     const r = effectiveReasoning();
@@ -347,7 +347,7 @@ window.Rubric = (() => {
     const box = h('div', { class: 'panel settings' });
     const setLlm = (key, value) => { llm[key] = value; save(LS_LLM, llm); rerenderAll(); };
     const field = (label, key, attrs = {}) => h('label', { class: 'field' }, label, h('input', { value: llm[key], ...attrs, onchange: (e) => setLlm(key, e.target.value.trim()) }));
-    const reasoning = llm.reasoning || 'default';
+    const reasoning = effectiveReasoning();
     const reasoningSelect = h('select', { onchange: (e) => setLlm('reasoning', e.target.value) },
       Object.entries(REASONING).map(([v, label]) => h('option', { value: v, selected: v === reasoning }, label)));
     box.append(h('h3', {}, 'LLM endpoint (OpenAI-compatible)'),
