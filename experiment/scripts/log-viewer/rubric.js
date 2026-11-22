@@ -357,9 +357,9 @@ window.Rubric = (() => {
         field('Base URL', 'baseUrl', { size: 48 }),
         field('Model', 'model', { size: 24, list: 'llm-models' }),
         h('label', { class: 'field' }, 'Reasoning', reasoningSelect),
-        field('Token', 'token', { type: 'password', size: 24, placeholder: 'ANALYSIS_TOKEN or API key' })),
+        field('Token', 'token', { type: 'password', size: 24, placeholder: 'API key' })),
       modelList,
-      h('p', { class: 'muted' }, 'The token is kept in this browser\'s localStorage. For study.thoughtful-ai.com it is the server\'s ANALYSIS_TOKEN; for api.openai.com/v1 or openrouter.ai/api/v1 it is an API key. ',
+      h('p', { class: 'muted' }, 'The API key (for api.openai.com/v1, openrouter.ai/api/v1, …) is kept in this browser\'s localStorage. ',
         'Model suggestions come from the server\'s /models list', models.error ? ` (unavailable: ${models.error})` : '', '. ',
         'Reasoning "Off" sends reasoning_effort "none" to OpenAI-style servers.'));
 
