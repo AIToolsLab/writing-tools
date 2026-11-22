@@ -30,6 +30,7 @@
 import type React from 'react';
 import { PageName } from '@/contexts/pageContext';
 import Chat from './chat';
+import Debug from './debug';
 import Draft from './draft';
 import { isFlagEnabled } from './flags';
 import MyWords from './my-words';
@@ -108,6 +109,19 @@ export const PAGES: PageDef[] = [
 		// `llm_usage` the way proxied generations are. Off until it is.
 		enabled: () => isFlagEnabled('my-words'),
 		render: () => <MyWords />,
+	},
+	{
+		name: PageName.Debug,
+		title: 'Debug',
+		hint: 'See what the model sees',
+		tier: 'lab',
+		// Behind a flag so it stays out of the Labs menu that Marketplace reviewers
+		// and beta users see. The Word task pane and the Google Docs sidebar have no
+		// addressable URL for `?ff=`, so on those surfaces turn it on from devtools
+		// (in the sidebar, select the sandboxed userHtmlFrame first):
+		//   localStorage.featureFlags = 'debug'   then reload the add-in.
+		enabled: () => isFlagEnabled('debug'),
+		render: () => <Debug />,
 	},
 ];
 
