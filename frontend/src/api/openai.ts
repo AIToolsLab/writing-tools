@@ -34,6 +34,8 @@ export async function authorizedFetch(
 	init?: RequestInit,
 ): Promise<Response> {
 	const headers = new Headers(init?.headers);
+	// The SDK supplies a placeholder key. Only a real session token belongs here.
+	headers.delete('Authorization');
 	// Identify this traffic as the first-party add-in so the proxy attributes its
 	// usage to (user, add-in). External tools send their own client_id via a tool
 	// grant token; the backend honours this header only for allowlisted ids.

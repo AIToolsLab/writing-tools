@@ -9,12 +9,14 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'backend/**'
       - '.github/workflows/frontend-tests.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'frontend/**'
+      - 'backend/**'
       - '.github/workflows/frontend-tests.yml'
   workflow_dispatch:
     inputs:
@@ -46,12 +48,38 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Install backend dependencies for round-trip tests
+        run: npm ci --prefix ../backend
       - name: Lint
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
       - name: Run unit tests
         run: npm test
+      - name: Run frontend/backend integration tests
+        run: npm run test:integration
+
+  browser-integration:
+    name: Browser with real backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: Install frontend and backend dependencies
+        run: npm ci && npm ci --prefix ../backend
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test browser through real HTTP stack
+        run: npm run test:browser-integration
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-integration-traces
+          path: frontend/test-results/integration/
+          retention-days: 14
 
   e2e:
     name: E2E tests (Playwright)

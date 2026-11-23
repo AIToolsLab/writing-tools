@@ -30,7 +30,7 @@ import { useAnonymousAuth } from '@/hooks/useAnonymousAuth';
 import { useDeviceAuth } from '@/hooks/useDeviceAuth';
 
 export interface AppAuthSession {
-	provider: 'betterauth' | 'demo';
+	provider: 'betterauth' | 'demo' | 'local';
 	isLoading: boolean; // initial session/provider loading (incl. token hydration)
 	isAuthorizing: boolean; // device polling in progress (NOT isLoading)
 	isAuthenticated: boolean; // token present AND user loaded
@@ -102,6 +102,17 @@ const DEFAULT_SESSION: AppAuthSession = {
 };
 
 const AppAuthContext = createContext<AppAuthSession>(DEFAULT_SESSION);
+
+// Explicitly opt in only when using a local backend with authentication disabled.
+// Never enabled in production builds or on a remotely hosted frontend.
+const LOCAL_SESSION: AppAuthSession = {
+	...DEFAULT_SESSION,
+	provider: 'local',
+	isAuthenticated: true,
+	user: { id: 'local-dev', name: 'Local developer', isAllowed: true, loggingConsent: 'none' },
+	loggingConsent: 'none',
+	getAccessToken: () => Promise.resolve(''),
+};
 
 export const useAppAuth = (): AppAuthSession => useContext(AppAuthContext);
 
@@ -214,6 +225,14 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 /** Renders the demo provider in demo mode, Better Auth everywhere else. */
 export function AppAuthProvider({ children }: { children: ReactNode }) {
 	const mode = useAtomValue(overallModeAtom);
+
+	if (
+		import.meta.env.DEV &&
+		import.meta.env.VITE_LOCAL_AUTH_DISABLED === 'true' &&
+		['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+	) {
+		return <AppAuthContext.Provider value={LOCAL_SESSION}>{children}</AppAuthContext.Provider>;
+	}
 
 	if (mode === OverallMode.demo) {
 		return <DemoAuthProvider>{children}</DemoAuthProvider>;

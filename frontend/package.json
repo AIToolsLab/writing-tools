@@ -25,6 +25,8 @@
 		"style:fix": "npm run lint:fix && npm run format",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"test:integration": "vitest run --config vitest.integration.config.ts",
+		"test:browser-integration": "playwright test --config playwright.integration.config.ts",
 		"test:build": "node test-build-output.mjs",
 		"test:dev-server": "node test-dev-server.mjs"
 	},
