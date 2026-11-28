@@ -14,11 +14,12 @@ import {
 } from 'react-icons/ai';
 
 import {
+	describeDocumentReadError,
 	describeGenerationError,
 	type GenerationErrorInfo,
 } from '@/api/errors';
 import { streamParts } from '@/api/generate';
-import { chatLog } from '@/api/logging';
+import { chatLog, documentReadLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
@@ -419,11 +420,14 @@ export default function Chat() {
 			// Nothing was sent: hand the text back so Retry sends it once.
 			updateMessage(text);
 			setFailedMessage({ text, source });
-			setErrorInfo({
-				message:
-					"Couldn't read your document, so nothing was sent. Try again.",
-				detail: error instanceof Error ? error.message : String(error),
-				retryable: true,
+			// Not hardcoded retryable: on Google Docs a lapsed grant fails every
+			// read until the sidebar is reopened, and a Retry button that can only
+			// fail again is worse than none.
+			const info = describeDocumentReadError(error);
+			setErrorInfo(info);
+			documentReadLog.failed(log, 'chat', {
+				error: info.detail,
+				code: info.code,
 			});
 			return;
 		}

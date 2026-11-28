@@ -36,8 +36,10 @@ export function handleAutoResize(textarea: HTMLTextAreaElement): void {
  * on the last displayed one.
  *
  * @returns `docContext` — the last pulled context (for display), `isLoading` —
- *   true until the first pull settles, and `refresh` — pulls the latest
- *   context, updates `docContext`, and resolves with the fresh value.
+ *   true until the first pull settles, `error` — what the most recent pull
+ *   failed with (null once a pull succeeds), and `refresh` — pulls the latest
+ *   context, updates `docContext`, and resolves with the fresh value (or
+ *   rejects, so a request that depends on it fails as a request).
  */
 export function useDocContext(editorAPI: EditorAPI) {
 	const { getDocContext } = editorAPI;
@@ -55,12 +57,22 @@ export function useDocContext(editorAPI: EditorAPI) {
 	// pages run at request time) must not make the page look like it is
 	// reloading.
 	const [isLoading, setIsLoading] = useState(true);
+	// "Not read" is a third state beside "loading" and "read": a failed pull
+	// leaves `docContext` at its empty initial value, and a page that only
+	// checks emptiness tells a writer whose document could not be read that
+	// they have not written anything. `docContext` is kept on failure, so a
+	// page that has read the document once can go on showing it.
+	const [error, setError] = useState<unknown>(null);
 
 	const refresh = useCallback(async (): Promise<DocContext> => {
 		try {
 			const latest = await getDocContext();
 			updateDocContext(latest);
+			setError(null);
 			return latest;
+		} catch (e) {
+			setError(e);
+			throw e;
 		} finally {
 			// Settled, not succeeded: a failed pull must still end the loading
 			// state, or the page spins forever on an error it can't see.
@@ -98,5 +110,5 @@ export function useDocContext(editorAPI: EditorAPI) {
 		};
 	}, [refresh]);
 
-	return { docContext, isLoading, refresh };
+	return { docContext, isLoading, error, refresh };
 }

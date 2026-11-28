@@ -136,6 +136,48 @@ conversation in state: the chat transcript (`pages/chat`, see
 `transcript.ts`) holds only user, assistant, and tool messages, with
 `CHAT_INSTRUCTIONS` kept outside it.
 
+### Requests and their lifecycle
+
+A page request is everything from the writer's click to what they see at the
+end, and **the document read is its first step**. `refresh()` from
+`useDocContext` is a host round-trip, and on Google Docs it is Apps Script,
+which fails on its own terms: a sidebar left open long enough loses its grant,
+and every bridge call after that rejects with `ScriptError: Authorization is
+required to perform that action.` until the sidebar is reopened. Draft and
+Revise used to `await` that read outside their `try/finally`. A failed read
+then lost the click without a trace (Draft) or left "Running N features…"
+spinning forever with Run disabled (Revise). The rules that came out of
+fixing that:
+
+- **The read goes inside the request.** The in-flight flag goes up before
+  it, and the `finally` that lowers the flag covers it. Describe a failed
+  read with `describeDocumentReadError`, not `describeGenerationError`: nothing was
+  generated, so the generation copy would be untrue. It maps a lapsed grant
+  to "reopen the sidebar" with `retryable: false`, because Retry cannot
+  re-authorize. Log it with `documentReadLog.failed`.
+- **Guard re-entry before side effects.** Check and set the in-flight ref
+  before clearing errors or starting a spinner, so an ignored click changes
+  nothing. Use a ref, because state is stale within the same frame.
+- **Retry re-runs the ask, not a captured request.** Store the intent (the
+  mode, the feature, the message text) and re-enter from the top, so the
+  document is read again. Replaying a stored request sends the document as
+  it was then. When that read is what failed, the stored request is an
+  earlier, unrelated one.
+- **Don't let one request strand another.** Revise allows one stream at a
+  time, and starting one aborts the last, which returns without finishing its
+  card. So Retry and Run are withheld while anything is in flight, rather
+  than cancelling it.
+- **Stop a batch at a failure that would repeat.** A Revise run stops at a
+  failed read or a `retryable: false` failure (out of credit, over a usage
+  cap), because every remaining feature would add the same error card.
+- **"Couldn't" is not "nothing".** `useDocContext` exposes `error`. A page
+  that branches on an empty document must check it first, or a writer whose
+  document couldn't be read is told they haven't written anything.
+- **Only success counts as done.** Anything that dedupes or caches
+  (`experiment`'s auto-refresh, Draft's dormant one) should record a request
+  as done only once it has succeeded. Otherwise a failure is never retried.
+  See AIToolsLab/writing-tools#729.
+
 ### Rendering model output
 
 Pages render markdown through `<Markdown>` (`src/components/markdown/`), which
