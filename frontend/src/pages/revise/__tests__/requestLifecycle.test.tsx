@@ -20,6 +20,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { noopEditorAPI } from '@/api/__fixtures__/editorAPI';
+import { describeGenerationError, GenerationError } from '@/api/errors';
 import { EditorContext } from '@/contexts/editorContext';
 import Revise from '..';
 
@@ -144,6 +145,37 @@ describe('Revise request lifecycle', () => {
 		expect(screen.queryByText(/^Running /)).toBeNull();
 		expect(runButton().disabled).toBe(false);
 		expect(streamTextDeltas).not.toHaveBeenCalled();
+	});
+
+	it('stops a run at a failure retrying cannot clear', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		renderRevise(() => Promise.resolve(DOC));
+		await screen.findByRole('button', { name: 'Main Point' });
+
+		// Out of credit: every remaining feature would fail identically.
+		scripts.push(
+			// eslint-disable-next-line require-yield
+			async function* () {
+				await Promise.resolve();
+				// What streamTextDeltas throws for a mid-stream provider error.
+				const chunk = {
+					type: 'error',
+					error: { code: 'insufficient_quota' },
+				};
+				throw new GenerationError(
+					describeGenerationError(chunk),
+					chunk,
+				);
+			},
+			says('Never reached.'),
+		);
+		select('Main Point', 'Counterarguments');
+		fireEvent.click(runButton());
+
+		await screen.findByText('Main Point failed');
+		await waitFor(() => expect(runButton().disabled).toBe(false));
+		expect(streamTextDeltas).toHaveBeenCalledTimes(1);
+		expect(screen.queryByText('Counterarguments failed')).toBeNull();
 	});
 
 	it('holds Retry back while a feature is still streaming', async () => {

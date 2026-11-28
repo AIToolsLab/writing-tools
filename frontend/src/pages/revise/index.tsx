@@ -262,11 +262,13 @@ export default function Revise() {
 	/**
 	 * Run one feature: read the document, then stream the model's answer into a
 	 * card. Never throws — every failure ends as a card carrying the error — and
-	 * resolves with whether the document could be read, so a run can stop
-	 * rather than produce the same failure once per remaining feature.
+	 * resolves with whether the rest of a run is worth attempting: after a
+	 * failed read or a failure retrying can't clear (out of credit, over a
+	 * usage cap), every remaining feature would fail the same way, one
+	 * identical card each.
 	 */
 	const requestVisualization = useCallback(
-		async (prompt: Prompt): Promise<{ docRead: boolean }> => {
+		async (prompt: Prompt): Promise<{ stopRun: boolean }> => {
 			// Only one active request is allowed; cancel any previous stream first.
 			// (Nothing starts a request while one is in flight — see
 			// `canStartRequest` — so in practice this only fires on unmount.)
@@ -296,7 +298,7 @@ export default function Revise() {
 				currentContext = await refreshDocContext();
 			} catch (err) {
 				settle();
-				if (requestController.signal.aborted) return { docRead: false };
+				if (requestController.signal.aborted) return { stopRun: true };
 				const info = describeDocumentReadError(err);
 				console.error(
 					'Could not read the document to run a feature:',
@@ -317,11 +319,12 @@ export default function Revise() {
 					error: info.detail,
 					code: info.code,
 				});
-				return { docRead: false };
+				return { stopRun: true };
 			}
+			// Aborted (the page unmounted): nothing more to show anyone.
 			if (requestController.signal.aborted) {
 				settle();
-				return { docRead: true };
+				return { stopRun: true };
 			}
 
 			const newViz = new Visualization(request, currentContext, prompt);
@@ -384,7 +387,7 @@ ${request}
 				});
 			} catch (err) {
 				if (requestController.signal.aborted) {
-					return { docRead: true };
+					return { stopRun: true };
 				}
 				const info = describeGenerationError(err);
 				console.error('Error fetching visualization:', err);
@@ -398,11 +401,12 @@ ${request}
 					error: info.detail,
 					code: info.code,
 				});
+				if (!info.retryable) return { stopRun: true };
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
 				settle();
 			}
-			return { docRead: true };
+			return { stopRun: false };
 		},
 		[refreshDocContext, log],
 	);
@@ -444,9 +448,8 @@ ${request}
 		try {
 			// Sequentially, each reading the document afresh.
 			for (const prompt of selectedPrompts) {
-				const { docRead } = await requestVisualization(prompt);
-				// The rest would fail the same way, one identical card each.
-				if (!docRead) break;
+				const { stopRun } = await requestVisualization(prompt);
+				if (stopRun) break;
 			}
 		} finally {
 			setRunningCount(0);

@@ -167,6 +167,9 @@ fixing that:
   time, and starting one aborts the last, which returns without finishing its
   card. So Retry and Run are withheld while anything is in flight, rather
   than cancelling it.
+- **Stop a batch at a failure that would repeat.** A Revise run stops at a
+  failed read or a `retryable: false` failure (out of credit, over a usage
+  cap), because every remaining feature would add the same error card.
 - **"Couldn't" is not "nothing".** `useDocContext` exposes `error`. A page
   that branches on an empty document must check it first, or a writer whose
   document couldn't be read is told they haven't written anything.
