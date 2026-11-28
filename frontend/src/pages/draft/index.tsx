@@ -5,11 +5,12 @@
 import { type ModelMessage } from 'ai';
 import { useCallback, useContext, useRef, useState } from 'react';
 import {
+	describeDocumentReadError,
 	describeGenerationError,
 	type GenerationErrorInfo,
 } from '@/api/errors';
 import { generateFullText } from '@/api/generate';
-import { draftLog } from '@/api/logging';
+import { documentReadLog, draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages, DRAFT_INSTRUCTIONS } from '@/api/prompts';
 import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
@@ -218,8 +219,19 @@ export default function Draft() {
 	const [emptyResult, setEmptyResult] = useState(false);
 	const [activeMode, setActiveMode] = useState<string | null>(null);
 	const fetcherRef = useRef<Fetcher | null>(null);
-	/** The last request, so the notice's Retry button can re-run it. */
-	const lastRequestRef = useRef<SuggestionRequest | null>(null);
+	/**
+	 * The mode the writer last asked for, so Retry re-runs the *ask* — reading
+	 * the document again — rather than replaying a captured request whose
+	 * document snapshot may be minutes old, or (when the read is what failed)
+	 * belongs to an earlier request altogether.
+	 */
+	const lastModeRef = useRef<string | null>(null);
+	/**
+	 * True from the click until the request settles, including the document
+	 * read before generation starts. A ref, not `isLoading`: two clicks in the
+	 * same frame both see the stale state value.
+	 */
+	const inFlightRef = useRef(false);
 
 	const getFetcher = useCallback((): Fetcher => {
 		if (!fetcherRef.current) {
@@ -295,7 +307,6 @@ export default function Draft() {
 		) {
 			updateErrorInfo(null);
 			setEmptyResult(false);
-			lastRequestRef.current = suggestionRequest;
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
@@ -353,16 +364,11 @@ export default function Draft() {
 		[getFetcher, save, log],
 	);
 
-	const retryLastRequest = useCallback(() => {
-		const request = lastRequestRef.current;
-		if (request) void getSuggestion(request, true);
-	}, [getSuggestion]);
-
 	const autoRefreshCallback = useCallback(async () => {
 		if (!shouldAutoRefresh) {
 			return;
 		}
-		if (getFetcher().requestInFlight) {
+		if (inFlightRef.current || getFetcher().requestInFlight) {
 			console.warn(
 				'Auto-refresh skipped because a request is already in flight.',
 			);
@@ -370,7 +376,18 @@ export default function Draft() {
 		}
 		// Pull the current document context at refresh time rather than tracking
 		// it continuously.
-		const docContext = await refreshDocContext();
+		let docContext: DocContext;
+		try {
+			docContext = await refreshDocContext();
+		} catch (err) {
+			// A background tick the writer did not ask for: skip this cycle rather
+			// than putting a notice over work they are in the middle of.
+			console.warn(
+				'Auto-refresh skipped, could not read the document:',
+				err,
+			);
+			return;
+		}
 		const request = {
 			docContext,
 			type: modesToShow[0],
@@ -400,6 +417,66 @@ export default function Draft() {
 		autoRefreshInterval,
 	);
 
+	/**
+	 * Run one feature for the writer: read the document, then generate from it.
+	 * The read is part of the request — on Google Docs it is an Apps Script
+	 * round-trip that fails on its own terms — so it sits inside the same
+	 * in-flight window and reports through the same notice.
+	 */
+	const requestSuggestion = useCallback(
+		async (mode: string) => {
+			// Guard before any side effect, so a click that is ignored leaves the
+			// panel exactly as it was.
+			if (inFlightRef.current) return;
+			inFlightRef.current = true;
+			lastModeRef.current = mode;
+			setActiveMode(mode);
+			updateErrorInfo(null);
+			setEmptyResult(false);
+			setIsLoading(true);
+			try {
+				let docContext: DocContext;
+				try {
+					docContext = await refreshDocContext();
+				} catch (err) {
+					const info = describeDocumentReadError(err);
+					console.error(
+						'Could not read the document for a suggestion:',
+						err,
+					);
+					documentReadLog.failed(log, 'draft', {
+						error: info.detail,
+						code: info.code,
+					});
+					updateErrorInfo(info);
+					return;
+				}
+				draftLog.suggestionRequested(log, {
+					generationType: mode,
+					docContext,
+				});
+				resetAutoRefresh();
+				await getSuggestion(
+					{
+						docContext,
+						type: mode,
+						brief: formatDocBriefForPrompt(briefRef.current),
+					},
+					true,
+				);
+			} finally {
+				inFlightRef.current = false;
+				setIsLoading(false);
+			}
+		},
+		[refreshDocContext, resetAutoRefresh, getSuggestion, log],
+	);
+
+	const retryLastRequest = useCallback(() => {
+		const mode = lastModeRef.current;
+		if (mode) void requestSuggestion(mode);
+	}, [requestSuggestion]);
+
 	return (
 		<div className={classes.app}>
 			<div className={classes.body}>
@@ -422,30 +499,7 @@ export default function Draft() {
 										key={mode}
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
-											void (async () => {
-												setActiveMode(mode);
-												// Pull the current document context at click time.
-												const docContext =
-													await refreshDocContext();
-												draftLog.suggestionRequested(
-													log,
-													{
-														generationType: mode,
-														docContext,
-													},
-												);
-												resetAutoRefresh();
-												getSuggestion(
-													{
-														docContext,
-														type: mode,
-														brief: formatDocBriefForPrompt(
-															briefRef.current,
-														),
-													},
-													true,
-												);
-											})();
+											void requestSuggestion(mode);
 										}}
 										disabled={isLoading}
 										type="button"

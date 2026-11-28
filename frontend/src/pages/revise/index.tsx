@@ -21,11 +21,12 @@ import {
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
 import {
+	describeDocumentReadError,
 	describeGenerationError,
 	type GenerationErrorInfo,
 } from '@/api/errors';
 import { streamTextDeltas } from '@/api/generate';
-import { reviseLog } from '@/api/logging';
+import { documentReadLog, reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
@@ -227,11 +228,12 @@ export default function Revise() {
 	const {
 		docContext,
 		isLoading: docContextLoading,
+		error: docReadError,
 		refresh: refreshDocContext,
 	} = useDocContext(editorAPI);
 	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
-	const [_loading, setLoading] = useState(false);
+	const [loading, setLoading] = useState(false);
 	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
 	const [_selectedCustomPrompt, _setSelectedCustomPrompt] = useState<
 		number | null
@@ -239,7 +241,9 @@ export default function Revise() {
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
 	const { brief } = useDocBrief();
-	const [isRunning, setIsRunning] = useState(false);
+	/** Features in the current run; 0 when no run is going. */
+	const [runningCount, setRunningCount] = useState(0);
+	const isRunning = runningCount > 0;
 	const docJump = useDocJump('revise');
 
 	// Read at request time, like the document context is, so a run always uses
@@ -255,20 +259,70 @@ export default function Revise() {
 		};
 	}, []);
 
+	/**
+	 * Run one feature: read the document, then stream the model's answer into a
+	 * card. Never throws — every failure ends as a card carrying the error — and
+	 * resolves with whether the document could be read, so a run can stop
+	 * rather than produce the same failure once per remaining feature.
+	 */
 	const requestVisualization = useCallback(
-		async (prompt: Prompt) => {
+		async (prompt: Prompt): Promise<{ docRead: boolean }> => {
 			// Only one active request is allowed; cancel any previous stream first.
+			// (Nothing starts a request while one is in flight — see
+			// `canStartRequest` — so in practice this only fires on unmount.)
 			activeRequestControllerRef.current?.abort();
 			const requestController = new AbortController();
 			activeRequestControllerRef.current = requestController;
+			/** Back to idle, unless a newer request has already replaced this one. */
+			const settle = () => {
+				if (activeRequestControllerRef.current === requestController) {
+					activeRequestControllerRef.current = null;
+					setLoading(false);
+				}
+			};
+			// In flight from here, not from when streaming starts: the read below is
+			// an Apps Script round-trip on Google Docs and can take seconds.
+			setLoading(true);
 
 			const request = prompt.isOverall
 				? prompt.prompt
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
 			// Pull the current document context at request time rather than
-			// tracking it continuously.
-			const currentContext = await refreshDocContext();
+			// tracking it continuously. This is part of the request: it can fail
+			// on its own (Apps Script on Google Docs), before any card exists.
+			let currentContext: DocContext;
+			try {
+				currentContext = await refreshDocContext();
+			} catch (err) {
+				settle();
+				if (requestController.signal.aborted) return { docRead: false };
+				const info = describeDocumentReadError(err);
+				console.error(
+					'Could not read the document to run a feature:',
+					err,
+				);
+				// Reported as the card the writer was expecting, carrying the error
+				// instead of a result. Its context is empty because that is the
+				// truth: the read is what failed.
+				const failed = new Visualization(
+					request,
+					{ beforeCursor: '', selectedText: '', afterCursor: '' },
+					prompt,
+				);
+				failed.error = info;
+				failed.done = true;
+				setVisualizations((prev) => [...prev, failed]);
+				documentReadLog.failed(log, 'revise', {
+					error: info.detail,
+					code: info.code,
+				});
+				return { docRead: false };
+			}
+			if (requestController.signal.aborted) {
+				settle();
+				return { docRead: true };
+			}
 
 			const newViz = new Visualization(request, currentContext, prompt);
 			setVisualizations((prev) => [...prev, newViz]);
@@ -294,8 +348,6 @@ ${request}
 </request>`,
 				},
 			];
-
-			setLoading(true);
 
 			// Re-publish the (mutated) visualization so React re-renders it.
 			const publish = () => {
@@ -332,7 +384,7 @@ ${request}
 				});
 			} catch (err) {
 				if (requestController.signal.aborted) {
-					return;
+					return { docRead: true };
 				}
 				const info = describeGenerationError(err);
 				console.error('Error fetching visualization:', err);
@@ -348,11 +400,9 @@ ${request}
 				});
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
-				if (activeRequestControllerRef.current === requestController) {
-					activeRequestControllerRef.current = null;
-					setLoading(false);
-				}
+				settle();
 			}
+			return { docRead: true };
 		},
 		[refreshDocContext, log],
 	);
@@ -381,29 +431,39 @@ ${request}
 		[selectedFeatures, log],
 	);
 
-	const runSelectedFeatures = useCallback(() => {
+	const runSelectedFeatures = useCallback(async () => {
 		if (selectedFeatures.length === 0) return;
 
 		reviseLog.featuresRun(log, { features: selectedFeatures });
-		setIsRunning(true);
 		const selectedPrompts = promptList.filter((p) =>
 			selectedFeatures.includes(p.keyword),
 		);
-
-		// For now, run them sequentially
-		let index = 0;
-		const runNext = async () => {
-			if (index < selectedPrompts.length) {
-				await requestVisualization(selectedPrompts[index]);
-				index++;
-				runNext();
-			} else {
-				setIsRunning(false);
+		// Counted at the start: the writer can toggle features mid-run, and the
+		// banner describes this run, not the next one.
+		setRunningCount(selectedPrompts.length);
+		try {
+			// Sequentially, each reading the document afresh.
+			for (const prompt of selectedPrompts) {
+				const { docRead } = await requestVisualization(prompt);
+				// The rest would fail the same way, one identical card each.
+				if (!docRead) break;
 			}
-		};
-
-		runNext();
+		} finally {
+			setRunningCount(0);
+		}
 	}, [selectedFeatures, requestVisualization, log]);
+
+	/**
+	 * Starting a request cancels whatever is in flight, which would strand that
+	 * feature's card half-written with no error and no way to re-run it. So
+	 * Retry (and Run) wait until nothing is running.
+	 */
+	const canStartRequest = !loading && !isRunning;
+
+	const docIsEmpty =
+		docContext.beforeCursor.length === 0 &&
+		docContext.selectedText.length === 0 &&
+		docContext.afterCursor.length === 0;
 
 	// Until the first read of the document lands, "empty" is not yet knowable —
 	// on the Google Docs surface that read is an Apps Script round-trip, and
@@ -421,11 +481,25 @@ ${request}
 		);
 	}
 
-	if (
-		docContext.beforeCursor.length === 0 &&
-		docContext.selectedText.length === 0 &&
-		docContext.afterCursor.length === 0
-	) {
+	// The read failed and there is nothing to show: say so, rather than falling
+	// through to "the document seems to be empty", which tells a writer whose
+	// document could not be read that they have not written anything.
+	if (docIsEmpty && docReadError) {
+		return (
+			<div className={classes.app}>
+				<GenerationErrorNotice
+					info={describeDocumentReadError(docReadError)}
+					onRetry={() => {
+						refreshDocContext().catch(() => {
+							// The hook keeps the error; this screen re-renders with it.
+						});
+					}}
+				/>
+			</div>
+		);
+	}
+
+	if (docIsEmpty) {
 		return (
 			<div className="text-gray-500">
 				The document seems to be empty. Write something first, and this
@@ -552,8 +626,8 @@ ${request}
 									<span></span>
 									<span></span>
 								</div>
-								Running {selectedFeatures.length} feature
-								{selectedFeatures.length > 1 ? 's' : ''}...
+								Running {runningCount} feature
+								{runningCount > 1 ? 's' : ''}...
 							</div>
 						) : null}
 						{visualizations.map((viz, index) => {
@@ -593,8 +667,13 @@ ${request}
 											<GenerationErrorNotice
 												info={viz.error}
 												title={`${viz.feature.keyword} failed`}
-												onRetry={() =>
-													retryVisualization(viz)
+												onRetry={
+													canStartRequest
+														? () =>
+																retryVisualization(
+																	viz,
+																)
+														: undefined
 												}
 											/>
 										) : null}
@@ -606,8 +685,13 @@ ${request}
 												tone="info"
 												title="Nothing came back"
 												message="The model returned an empty response for this feature. Running it again often helps."
-												onRetry={() =>
-													retryVisualization(viz)
+												onRetry={
+													canStartRequest
+														? () =>
+																retryVisualization(
+																	viz,
+																)
+														: undefined
 												}
 											/>
 										) : null}
@@ -632,8 +716,8 @@ ${request}
 				</div>
 				<button
 					className={classes.runBtn}
-					disabled={selectedFeatures.length === 0 || isRunning}
-					onClick={runSelectedFeatures}
+					disabled={selectedFeatures.length === 0 || !canStartRequest}
+					onClick={() => void runSelectedFeatures()}
 				>
 					{selectedFeatures.length > 0
 						? `Run ${selectedFeatures.length} feature${selectedFeatures.length > 1 ? 's' : ''}`

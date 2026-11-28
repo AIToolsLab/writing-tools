@@ -70,6 +70,39 @@ describe('useDocContext', () => {
 
 		// A stuck spinner would be a worse version of the bug it replaces.
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		// ...and the page can tell "could not read" from "empty document".
+		expect(result.current.error).toBeInstanceOf(Error);
+	});
+
+	it('clears the error once a later pull succeeds, keeping the last context meanwhile', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		let next: () => Promise<DocContext> = () =>
+			Promise.resolve({
+				beforeCursor: 'Read once',
+				selectedText: '',
+				afterCursor: '',
+			});
+		// One editor for the hook's lifetime, as EditorContext provides.
+		const editorAPI = makeEditorAPI(() => next());
+		const { result } = renderHook(() => useDocContext(editorAPI));
+		await waitFor(() =>
+			expect(result.current.docContext.beforeCursor).toBe('Read once'),
+		);
+
+		next = () => Promise.reject(new Error('bridge down'));
+		await act(async () => {
+			await expect(result.current.refresh()).rejects.toThrow(
+				'bridge down',
+			);
+		});
+		expect(result.current.error).toBeInstanceOf(Error);
+		expect(result.current.docContext.beforeCursor).toBe('Read once');
+
+		next = () => Promise.resolve(emptyContext);
+		await act(async () => {
+			await result.current.refresh();
+		});
+		expect(result.current.error).toBeNull();
 	});
 
 	it('does not go back to loading on a later refresh', async () => {

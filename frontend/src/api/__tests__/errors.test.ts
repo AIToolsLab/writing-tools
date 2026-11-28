@@ -1,6 +1,10 @@
 import { APICallError, RetryError } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { describeGenerationError, GenerationError } from '../errors';
+import {
+	describeDocumentReadError,
+	describeGenerationError,
+	GenerationError,
+} from '../errors';
 
 function apiCallError({
 	statusCode,
@@ -136,6 +140,55 @@ describe('describeGenerationError', () => {
 		expect(describeGenerationError(textOnly).code).toBe(
 			'rate_limit_exceeded',
 		);
+	});
+
+	it('tells the writer to reopen the sidebar when Apps Script authorization has lapsed', () => {
+		// What `google.script.run`'s failure handler hands back once a sidebar has
+		// been open long enough to lose its grant.
+		const scriptError = Object.assign(
+			new Error('Authorization is required to perform that action.'),
+			{ name: 'ScriptError' },
+		);
+		const info = describeGenerationError(scriptError);
+
+		expect(info.message).toMatch(/open it again from the Extensions menu/i);
+		// Retrying in place cannot re-authorize, so no Retry button.
+		expect(info.retryable).toBe(false);
+		expect(info.detail).toBe(
+			'Authorization is required to perform that action.',
+		);
+	});
+
+	it('treats other Apps Script failures as worth retrying', () => {
+		const info = describeGenerationError(
+			Object.assign(new Error('Service unavailable'), {
+				name: 'ScriptError',
+			}),
+		);
+
+		expect(info.message).toMatch(/would not let the add-in read/i);
+		expect(info.retryable).toBe(true);
+	});
+
+	it('describes a failed document read without claiming anything was generated', () => {
+		const info = describeDocumentReadError(new Error('GeneralException'));
+
+		expect(info.message).toMatch(/couldn't read your document/i);
+		expect(info.message).not.toMatch(/generat/i);
+		expect(info.detail).toBe('GeneralException');
+		expect(info.retryable).toBe(true);
+	});
+
+	it('still names the reopen step for a lapsed grant when describing a read', () => {
+		const info = describeDocumentReadError(
+			Object.assign(
+				new Error('Authorization is required to perform that action.'),
+				{ name: 'ScriptError' },
+			),
+		);
+
+		expect(info.message).toMatch(/open it again from the Extensions menu/i);
+		expect(info.retryable).toBe(false);
 	});
 
 	it('keeps the raw text as detail for anything it cannot classify', () => {

@@ -73,8 +73,12 @@ import type { LogFn } from '@/hooks/useLog';
  *       Field names are unchanged. The server drops anything outside a bucket
  *       at every level and lists the dropped names in
  *       `extra_data.unclassified_keys`.
+ *  10 — `document_read_failed`, which Draft, Revise and Chat emit when reading
+ *       the document — the first step of every request — fails (on Google
+ *       Docs, an Apps Script round-trip). Before this those failures left no
+ *       record at all.
  */
-export const LOG_SCHEMA_VERSION = 9;
+export const LOG_SCHEMA_VERSION = 10;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';
@@ -301,6 +305,19 @@ export const chatLog = {
  * appear, so — like {@link briefLog} — the page is a parameter rather than
  * being baked into the helper.
  */
+/**
+ * Reading the document failed. Every request starts with that read, so a page
+ * that can't read the document can't do anything else either — and nothing
+ * else in the log says so, because the model was never called. Usage-level:
+ * `error` is the host's message (e.g. Apps Script's "Authorization is
+ * required…"), never document text.
+ */
+export const documentReadLog = {
+	failed(log: LogFn, page: LogPage, data: { error: string; code?: string }) {
+		return emit(log, page, 'document_read_failed', { usage: data });
+	},
+};
+
 export const referenceLog = {
 	/** The writer clicked a document reference. */
 	clicked(log: LogFn, page: LogPage, data: { target: string }) {

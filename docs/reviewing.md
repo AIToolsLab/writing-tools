@@ -71,3 +71,26 @@ frontend.
   tolerate unknown fields.
 - **Was it tried on more than one surface?** If not, say which ones in the
   PR description.
+
+## Requests and their failures
+
+Most error-handling bugs here have come from a request that was only
+written for its happy path. Walk each request a change adds or touches
+through its states — idle, in flight (including the document read before
+generation), succeeded, empty, failed, cancelled — and check:
+
+- **Is the document read inside the request's `try`?** It's a request of its
+  own (an Apps Script round-trip on Google Docs) and fails on its own terms.
+  Outside the `try`, a failure skips the `finally` and leaves the page stuck
+  "loading" with nothing on screen.
+- **Does Retry start the ask over?** It should re-read the document and
+  rebuild the request, not replay a captured one with a stale snapshot.
+- **Can starting this request cancel one already in flight, and what happens
+  to that one's UI?** If an aborted request just returns, whatever it was
+  showing is stranded.
+- **Is "couldn't" kept apart from "nothing"?** A failed read is not an empty
+  document, and a failed generation is not an empty result.
+- **Is the failure logged?** If it isn't, the next report of it can't be
+  diagnosed.
+
+See "Requests and their lifecycle" in `frontend/CLAUDE.md`.
